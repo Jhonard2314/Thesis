@@ -11,8 +11,7 @@ node_modules/
 dist/
 build/
 .env
-bias_module/data/
-bias_module/models/
+bias_module/
 models/
 .streamlit_config/
 *.pt
