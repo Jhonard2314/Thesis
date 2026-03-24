@@ -1,0 +1,12 @@
+requests
+python-dotenv
+newspaper3k
+lxml_html_clean
+huggingface_hub
+streamlit
+colorama
+pandas
+torch
+transformers
+datasets
+scikit-learn
