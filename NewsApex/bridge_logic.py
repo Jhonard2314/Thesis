@@ -4,10 +4,10 @@ import os
 import json
 import argparse
 
-# Add parent directory to sys.path to access our news_service and model
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+# Add current directory to sys.path to access our news_service and model locally
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 from news_service import NewsService
 
