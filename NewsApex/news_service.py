@@ -2,7 +2,7 @@ import requests
 import os
 import re
 from dotenv import load_dotenv
-# from newspaper import Article, Config  <-- Moved inside methods for Vercel robustness
+from newspaper import Article, Config
 from huggingface_hub import InferenceClient
 from concurrent.futures import ThreadPoolExecutor
 import sys
@@ -32,19 +32,12 @@ class NewsService:
         self.hf_token = os.getenv("HF_TOKEN")
         
         self.session = requests.Session()
-        
-        # Newspaper config initialization
-        self.config = None
-        try:
-            from newspaper import Config
-            self.config = Config()
-            self.config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-            self.config.request_timeout = 20
-            self.config.fetch_images = False
-            self.config.memoize_articles = False
-            self.config.MAX_TEXT = 100000 
-        except ImportError:
-            print("Warning: newspaper3k not installed. Article scraping will be unavailable.", file=sys.stderr)
+        self.config = Config()
+        self.config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        self.config.request_timeout = 20
+        self.config.fetch_images = False
+        self.config.memoize_articles = False
+        self.config.MAX_TEXT = 100000 # Ensure we get as much text as possible
         
         # Initialize HF Client for summarization and fallback bias detection
         if self.hf_token:
@@ -408,23 +401,15 @@ class NewsService:
 
     def get_full_content(self, url):
         try:
-            # Check if newspaper is available
-            try:
-                from newspaper import Article
-            except ImportError:
-                print("Error: newspaper3k not installed. Cannot scrape article.", file=sys.stderr)
-                return None
-
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                'User-Agent': self.config.browser_user_agent,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             }
-            timeout = self.config.request_timeout if self.config else 20
-            response = self.session.get(url, headers=headers, timeout=timeout)
+            response = self.session.get(url, headers=headers, timeout=self.config.request_timeout)
             if response.status_code != 200:
                 return None
             
@@ -434,7 +419,7 @@ class NewsService:
             if any(term in html_lower for term in quick_fail_terms):
                 return None
 
-            article = Article(url, config=self.config) if self.config else Article(url)
+            article = Article(url, config=self.config)
             article.set_html(response.text)
             article.parse()
             
