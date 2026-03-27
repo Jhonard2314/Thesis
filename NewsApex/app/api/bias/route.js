@@ -43,8 +43,8 @@ export async function POST(request) {
             console.log(`Action ${action} successful for: ${articleUrl}`);
             resolve(JSON.parse(output));
           } catch (e) {
-            console.error(`Failed to parse output JSON: ${output}`);
-            reject(new Error(`Failed to parse output: ${output}`));
+            console.error(`Failed to parse bias output. Raw output: ${output}`);
+            reject(new Error(`Backend error: ${output.substring(0, 100)}...`));
           }
         }
       });
@@ -54,7 +54,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message },
+      { error: error.message || 'Analysis failed' },
       { status: 500 }
     );
   }

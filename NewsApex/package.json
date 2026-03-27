@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "pip install --user -r requirements.txt || echo 'Python requirements install skipped or failed'"
   },
   "dependencies": {
     "next": "16.1.6",

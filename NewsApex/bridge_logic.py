@@ -11,6 +11,13 @@ if current_dir not in sys.path:
 
 from news_service import NewsService
 
+# Helper to print only valid JSON to stdout
+def print_json(data):
+    # Ensure stdout is clean by flushing and then printing our JSON
+    sys.stdout.flush()
+    print(json.dumps(data))
+    sys.stdout.flush()
+
 def main():
     try:
         parser = argparse.ArgumentParser(description='Bridge logic for NewsApex UI')
@@ -35,36 +42,36 @@ def main():
                     "urlToImage": a.get("image_url"),
                     "description": a.get("snippet")
                 })
-            print(json.dumps({"articles": transformed}))
+            print_json({"articles": transformed})
 
         elif args.action == 'get_summary':
             if not args.url:
-                print(json.dumps({"error": "URL required"}))
+                print_json({"error": "URL required"})
                 return
 
             # 1. Get content
             content = service.get_full_content(args.url)
             if not content:
-                print(json.dumps({"error": "Could not retrieve content for this article."}))
+                print_json({"error": "Could not retrieve content for this article."})
                 return
 
             # 2. Summarization (truncated)
             summary = service.summarize_content(content[:2000])
             
-            print(json.dumps({
+            print_json({
                 "summary": summary,
                 "full_content": content # We keep this for bias analysis later
-            }))
+            })
 
         elif args.action == 'analyze_bias':
             if not args.url:
-                print(json.dumps({"error": "URL required"}))
+                print_json({"error": "URL required"})
                 return
 
             # 1. Get content
             content = service.get_full_content(args.url)
             if not content:
-                print(json.dumps({"error": "Could not retrieve content for this article."}))
+                print_json({"error": "Could not retrieve content for this article."})
                 return
 
             # 2. Analyze overall bias
@@ -110,7 +117,7 @@ def main():
             # Show the raw bias score from the model
             overall_display_score = bias_prob
             
-            print(json.dumps({
+            print_json({
                 "bias_level": level,
                 "bias_score": round(overall_display_score * 100, 1),
                 "explanation": overall.get("reasoning", "No specific reasoning provided."),
@@ -120,10 +127,10 @@ def main():
                 "biased_count": biased_count,
                 "total_sentences_analyzed": len(analysis_sentences),
                 "full_content": content
-            }))
+            })
     except Exception as e:
         import sys
-        print(json.dumps({"error": str(e)}))
+        print_json({"error": str(e)})
         print(f"Bridge Error: {str(e)}", file=sys.stderr)
 
 if __name__ == "__main__":

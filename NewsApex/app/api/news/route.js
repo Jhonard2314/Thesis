@@ -42,7 +42,8 @@ export async function GET(request) {
           try {
             resolve(JSON.parse(output));
           } catch (e) {
-            reject(new Error(`Failed to parse news output: ${output}`));
+            console.error(`Failed to parse news output. Raw output: ${output}`);
+            reject(new Error(`Backend error: ${output.substring(0, 100)}...`));
           }
         }
       });
@@ -52,7 +53,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching news:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch news articles' },
+      { error: error.message || 'Failed to fetch news articles' },
       { status: 500 }
     );
   }
