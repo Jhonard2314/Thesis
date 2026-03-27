@@ -69,11 +69,11 @@ class NewsService:
             if os.path.exists(model_path):
                 # Load from local cache if possible to avoid HF connectivity issues
                 if os.path.exists(model_cache_dir):
+                    from transformers import BertConfig
                     self.bias_tokenizer = BertTokenizer.from_pretrained(model_cache_dir)
-                    self.bias_model = BertForSequenceClassification.from_pretrained(
-                        model_cache_dir,
-                        num_labels=2
-                    )
+                    # Load model structure from config to avoid needing the base pytorch_model.bin
+                    config = BertConfig.from_pretrained(os.path.join(model_cache_dir, "config.json"))
+                    self.bias_model = BertForSequenceClassification(config)
                 else:
                     self.bias_tokenizer = BertTokenizer.from_pretrained(bias_config.MODEL_NAME)
                     self.bias_model = BertForSequenceClassification.from_pretrained(

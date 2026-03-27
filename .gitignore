@@ -7,11 +7,13 @@ __pycache__/
 *.log
 venv/
 env/
+.env
+*.pt
+*.bin
+**/models/
+**/data/model_cache/
 node_modules/
 dist/
 build/
-.env
 bias_module/
-models/
 .streamlit_config/
-*.pt
