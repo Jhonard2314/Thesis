@@ -26,7 +26,7 @@ class NewsService:
     }
 
     def __init__(self):
-        # Default keys provided for ease of use
+        # API keys from .env with fallbacks for ease of use
         self.newsdata_api_key = os.getenv("NEWSDATA_API_KEY", "pub_c319de1ec46240dc912d9b112e01c866")
         self.guardian_api_key = os.getenv("GUARDIAN_API_KEY", "438ab5df-f19b-42b6-9ca9-83b8e971f219")
         self.hf_token = os.getenv("HF_TOKEN")
@@ -378,7 +378,7 @@ class NewsService:
                 return None
             
             # Simple check: can we get content?
-            content = self.get_full__content(url)
+            content = self.get_full_content(url)
             if content:
                 # Store content temporarily to avoid re-scraping if needed, 
                 # but for now we just return the article if it's scrapable
