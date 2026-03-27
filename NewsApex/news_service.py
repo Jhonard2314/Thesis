@@ -188,12 +188,6 @@ class NewsService:
             self.load_local_bias_model()
 
         if not self.bias_model or not self.bias_tokenizer:
-            # Fallback to HF for batch processing if local model is not available
-            if self.hf_client:
-                results = []
-                for s in sentences:
-                    results.append(self.rate_bias(s))
-                return results
             return [{"label": "Offline", "score": 0.0, "reasoning": "Model not available."} for _ in sentences]
 
         try:
@@ -258,30 +252,6 @@ class NewsService:
                     }
             except Exception as e:
                 print(f"Local Model Prediction Error: {e}", file=sys.stderr)
-
-        # Fallback to Hugging Face Inference API if local model is not available (e.g. on Vercel)
-        if self.hf_client:
-            try:
-                # Use a standard bias detection model from HF
-                response = self.hf_client.text_classification(filtered_text, model="valhalla/distilbart-mnli-12-3")
-                
-                # Process HF response
-                bias_score = 0.5 # Default
-                for item in response:
-                    if item['label'].lower() in ['biased', 'non-neutral', 'entailment']:
-                        bias_score = item['score']
-                
-                label = "Biased" if bias_score > 0.5 else "Factual"
-                reasoning = self.get_bias_reasoning(filtered_text, label, bias_score)
-                
-                return {
-                    "label": label,
-                    "score": bias_score,
-                    "reasoning": reasoning + " (Analyzed via Cloud AI)",
-                    "top_words": [] # Gradient analysis only works locally
-                }
-            except Exception as e:
-                print(f"Cloud Bias Analysis Error: {e}", file=sys.stderr)
 
         return {"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."}
 

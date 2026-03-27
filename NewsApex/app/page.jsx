@@ -41,28 +41,17 @@ export default function Home() {
 
       const response = await fetch(`/api/news?${params}`);
       
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}...`);
-      }
+      const data = await response.json();
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch news');
       }
-
+      
       setArticles(data.articles || []);
       setSearchQuery(query);
     } catch (err) {
       console.error('Fetch error:', err);
-      // Clean up the error message for display
-      let displayError = err.message;
-      if (displayError.includes('Unexpected token')) {
-        displayError = 'Server returned an invalid response. This usually means a Python dependency is missing on Vercel.';
-      }
-      setError(displayError);
+      setError(err.message);
       setArticles([]);
     } finally {
       setLoading(false);

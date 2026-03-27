@@ -21,23 +21,12 @@ def print_json(data):
 def main():
     try:
         parser = argparse.ArgumentParser(description='Bridge logic for NewsApex UI')
-        parser.add_argument('action', choices=['fetch_news', 'get_summary', 'analyze_bias', 'check_env'], help='Action to perform')
+        parser.add_argument('action', choices=['fetch_news', 'get_summary', 'analyze_bias'], help='Action to perform')
         parser.add_argument('--query', help='Search query for news')
         parser.add_argument('--category', help='News category')
         parser.add_argument('--url', help='Article URL for analysis')
         
         args = parser.parse_args()
-
-        if args.action == 'check_env':
-            import pkg_resources
-            installed = [str(d) for d in pkg_resources.working_set]
-            print_json({
-                "python_version": sys.version,
-                "installed_packages": installed,
-                "env_vars": {k: "set" for k in os.environ.keys() if "KEY" in k or "TOKEN" in k}
-            })
-            return
-
         service = NewsService()
 
         if args.action == 'fetch_news':
