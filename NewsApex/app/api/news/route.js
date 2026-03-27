@@ -20,7 +20,9 @@ export async function GET(request) {
       }
 
       const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
-      const pythonProcess = spawn('python', [scriptPath, ...args.slice(1)], {});
+      // Use python3 for Linux/Vercel environment
+      const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+      const pythonProcess = spawn(pythonCommand, [scriptPath, ...args.slice(1)], {});
 
       let output = '';
       let error = '';

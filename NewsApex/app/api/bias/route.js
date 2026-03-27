@@ -19,7 +19,9 @@ export async function POST(request) {
 
     // Run the specified action using our bridge
     const resultData = await new Promise((resolve, reject) => {
-      const pythonProcess = spawn('python', [path.join(process.cwd(), 'bridge_logic.py'), action, '--url', articleUrl]);
+      const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
+      const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+      const pythonProcess = spawn(pythonCommand, [scriptPath, action, '--url', articleUrl]);
 
       let output = '';
       let error = '';
