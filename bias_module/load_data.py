@@ -10,14 +10,31 @@ if PROJECT_ROOT not in sys.path:
 
 # Now we can safely import config
 import config
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict, Dataset
+import pandas as pd
 
 def load_babe_dataset():
     """
-    Load the BABE dataset from Hugging Face and split into train/test.
+    Load the BABE dataset from local parquet files if available,
+    otherwise from Hugging Face.
     Returns:
-        dataset: dict with 'train' and 'test' splits
+        dataset: DatasetDict with 'train' and 'test' splits
     """
+    local_train = os.path.join(PROJECT_ROOT, "bias_module", "data", "cache", "data", "train-00000-of-00001.parquet")
+    local_test = os.path.join(PROJECT_ROOT, "bias_module", "data", "cache", "data", "test-00000-of-00001.parquet")
+
+    if os.path.exists(local_train) and os.path.exists(local_test):
+        print("Loading BABE dataset from local parquet files...")
+        train_df = pd.read_parquet(local_train)
+        test_df = pd.read_parquet(local_test)
+        
+        dataset = DatasetDict({
+            "train": Dataset.from_pandas(train_df),
+            "test": Dataset.from_pandas(test_df)
+        })
+        return dataset
+
+    print(f"Loading BABE dataset from Hugging Face ({config.DATASET_NAME})...")
     # Load the full dataset
     dataset = load_dataset(config.DATASET_NAME)
 

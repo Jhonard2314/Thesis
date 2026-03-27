@@ -1,0 +1,11 @@
+Test Accuracy: 0.8200
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     factual       0.74      0.91      0.82       441
+      biased       0.91      0.75      0.82       559
+
+    accuracy                           0.82      1000
+   macro avg       0.83      0.83      0.82      1000
+weighted avg       0.84      0.82      0.82      1000
