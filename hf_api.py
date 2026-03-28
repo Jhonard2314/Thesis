@@ -5,20 +5,19 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# Add current directory and NewsApex to path for imports
+# Add current directory to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
-news_apex_path = os.path.join(current_dir, "NewsApex")
-if news_apex_path not in sys.path:
-    sys.path.append(news_apex_path)
-
-# Lazy import NewsService to speed up initial load
+# Lazy import NewsService to handle both flat and nested structures
 try:
-    from NewsApex.news_service import NewsService
-except ImportError:
     from news_service import NewsService
+except ImportError:
+    try:
+        from NewsApex.news_service import NewsService
+    except ImportError:
+        raise ImportError("Could not find news_service.py in root or NewsApex folder")
 
 app = FastAPI(title="NewsApex AI Backend")
 service = NewsService()
@@ -75,7 +74,10 @@ def analyze(request: AnalysisRequest):
             # 2. Analyze overall bias
             overall = service.rate_bias(content)
             
-            # 3. Sentence-by-sentence analysis
+            # 3. Get Summary (NEW: added to bias analysis)
+            summary = service.summarize_content(content)
+            
+            # 4. Sentence-by-sentence analysis
             sentences = service.split_into_sentences(content)
             analysis_sentences = sentences[:25]
             batch_results = service.rate_bias_batch(analysis_sentences)
@@ -104,6 +106,7 @@ def analyze(request: AnalysisRequest):
             return {
                 "bias_level": level,
                 "bias_score": round(bias_prob * 100, 1),
+                "summary": summary,
                 "explanation": overall.get("reasoning", "No specific reasoning provided."),
                 "top_words": overall.get("top_words", []),
                 "sentence_breakdown": sentence_results,
