@@ -23,6 +23,13 @@ export async function POST(request) {
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
       const pythonProcess = spawn(pythonCommand, [scriptPath, action, '--url', articleUrl]);
 
+      // Set a 9-second timeout for Vercel's Hobby plan (10s limit)
+      // This ensures we catch the timeout and return a JSON error instead of a 504.
+      const timeout = setTimeout(() => {
+        pythonProcess.kill();
+        reject(new Error('Bias analysis timed out. The article might be too long or the server is under heavy load.'));
+      }, 9000);
+
       let output = '';
       let error = '';
 
@@ -35,6 +42,7 @@ export async function POST(request) {
       });
 
       pythonProcess.on('close', (code) => {
+        clearTimeout(timeout);
         if (code !== 0) {
           console.error(`Action ${action} failed with code ${code}: ${error}`);
           // Return the error as a JSON object so the frontend can display it

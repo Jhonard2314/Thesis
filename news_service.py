@@ -296,7 +296,7 @@ class NewsService:
         if category and category != 'general': 
             params["category"] = category
         try:
-            res = self.session.get(url, params=params)
+            res = self.session.get(url, params=params, timeout=10)
             # print(f"DEBUG: NewsData.io API response status: {res.status_code}")
             data = res.json()
             # print(f"DEBUG: NewsData.io raw data: {str(data)[:500]}...") # Print first 500 chars
@@ -332,7 +332,7 @@ class NewsService:
             params["section"] = category_map[category]
 
         try:
-            res = self.session.get(url, params=params)
+            res = self.session.get(url, params=params, timeout=10)
             data = res.json()
             results = data.get("response", {}).get("results", [])
             return [{
@@ -369,8 +369,8 @@ class NewsService:
         # We only want to show articles that we can actually scrape content from.
         # Since scraping is slow, we use a thread pool and limit the number of articles we check.
         filtered_articles = []
-        # Limit to top 15 most recent/relevant articles to ensure fast response time
-        articles_to_check = unique_articles[:15]
+        # Limit to top 12 most recent/relevant articles (a balanced number for Vercel/Local)
+        articles_to_check = unique_articles[:12]
         
         def check_article(article):
             url = article.get("link")
@@ -378,29 +378,32 @@ class NewsService:
                 return None
             
             # Simple check: can we get content?
-            content = self.get_full_content(url)
+            # Use a slightly longer timeout for local, but capped for production
+            content = self.get_full_content(url, timeout=7)
             if content:
                 # Store content temporarily to avoid re-scraping if needed, 
                 # but for now we just return the article if it's scrapable
                 return article
             return None
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(check_article, articles_to_check))
             filtered_articles = [r for r in results if r is not None]
 
-        # If we have very few articles after filtering, maybe check a few more 
-        # but don't exceed the API timeout
-        if len(filtered_articles) < 5 and len(unique_articles) > 15:
-            extra_to_check = unique_articles[15:25]
-            with ThreadPoolExecutor(max_workers=5) as executor:
+        # Ensure we have at least some articles, but don't spend too much time
+        if len(filtered_articles) < 6 and len(unique_articles) > 12:
+            extra_to_check = unique_articles[12:18]
+            with ThreadPoolExecutor(max_workers=6) as executor:
                 extra_results = list(executor.map(check_article, extra_to_check))
                 filtered_articles.extend([r for r in extra_results if r is not None])
 
         return filtered_articles
 
-    def get_full_content(self, url):
+    def get_full_content(self, url, timeout=None):
         try:
+            if timeout is None:
+                timeout = self.config.request_timeout
+
             headers = {
                 'User-Agent': self.config.browser_user_agent,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -409,7 +412,7 @@ class NewsService:
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             }
-            response = self.session.get(url, headers=headers, timeout=self.config.request_timeout)
+            response = self.session.get(url, headers=headers, timeout=timeout)
             if response.status_code != 200:
                 return None
             

@@ -84,10 +84,10 @@ def main():
             # 2. Analyze overall bias
             overall = service.rate_bias(content)
             
-            # 3. Sentence-by-sentence analysis (Analyze the entire article for highlighting)
+            # 3. Sentence-by-sentence analysis (Analyze a subset of the article for highlighting)
             sentences = service.split_into_sentences(content)
-            # Analyze all sentences to provide a full-article highlight experience
-            analysis_sentences = sentences
+            # Limit to the first 25 sentences to avoid timeout, while still giving a good breakdown
+            analysis_sentences = sentences[:25]
             
             batch_results = service.rate_bias_batch(analysis_sentences)
             
