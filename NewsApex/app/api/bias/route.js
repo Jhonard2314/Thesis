@@ -41,16 +41,77 @@ async function callCloudSummary(text) {
     const response = await fetch(
       "https://api-inference.huggingface.co/models/facebook/bart-large-cnn",
       {
-        headers: { Authorization: `Bearer ${HF_TOKEN}` },
+        headers: { Authorization: `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" },
         method: "POST",
-        body: JSON.stringify({ inputs: text.substring(0, 3000) }),
+        body: JSON.stringify({ 
+          inputs: text.substring(0, 3000),
+          options: { wait_for_model: true } // 🔹 Tell HF to wait if model is loading
+        }),
+        signal: AbortSignal.timeout(20000)
+      }
+    );
+    
+    const result = await response.json();
+    
+    // Handle different HF response formats
+    if (Array.isArray(result) && result[0]?.summary_text) {
+      return result[0].summary_text;
+    }
+    if (result?.summary_text) {
+      return result.summary_text;
+    }
+    
+    console.error("HF Summary unexpected format:", result);
+    return null;
+  } catch (e) {
+    console.error("Cloud summary failed:", e);
+    return null;
+  }
+}
+
+async function callCloudBiasNode(text) {
+  if (!text || text.length < 50) return null;
+  
+  try {
+    // 🔹 Use a zero-shot classification model for better bias detection in cloud
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/facebook/bart-large-mnli",
+      {
+        headers: { Authorization: `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" },
+        method: "POST",
+        body: JSON.stringify({ 
+          inputs: text.substring(0, 1000),
+          parameters: { candidate_labels: ["biased", "neutral", "factual"] },
+          options: { wait_for_model: true }
+        }),
         signal: AbortSignal.timeout(15000)
       }
     );
+    
     const result = await response.json();
-    return result?.[0]?.summary_text || null;
+    if (result?.labels && result?.scores) {
+      const biasedIdx = result.labels.indexOf("biased");
+      const bias_score = result.scores[biasedIdx] || 0;
+      const bias_level = bias_score > 0.7 ? "High" : bias_score > 0.4 ? "Medium" : "Low";
+      
+      return {
+        bias_level,
+        bias_score: Math.round(bias_score * 100),
+        explanation: `Cloud Analysis: This article is classified as ${bias_level} bias using zero-shot NLP.`,
+        sentence_breakdown: [{ 
+          text: text.substring(0, 200) + "...", 
+          label: bias_score > 0.5 ? "Biased" : "Factual", 
+          score: Math.round(bias_score * 100),
+          reasoning: "Cloud fallback analysis."
+        }],
+        factual_count: bias_score < 0.5 ? 1 : 0,
+        biased_count: bias_score >= 0.5 ? 1 : 0,
+        total_sentences_analyzed: 1
+      };
+    }
+    return null;
   } catch (e) {
-    console.error("Cloud summary failed:", e);
+    console.error("Cloud bias Node fallback failed:", e);
     return null;
   }
 }
@@ -73,7 +134,6 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Could not extract article content.' });
       }
 
-      // Parallelize summarization (Cloud) and just return the content
       const summary = await callCloudSummary(content);
       return NextResponse.json({
         summary: summary || "Summary unavailable for this article.",
@@ -81,8 +141,9 @@ export async function POST(request) {
       });
     }
 
-    // 🔹 ACTION: ANALYZE_BIAS (Keep Python Bridge for local BERT)
-    const resultData = await new Promise(async (resolve, reject) => {
+    // 🔹 ACTION: ANALYZE_BIAS
+    // 1. Try Python Bridge (Local BERT)
+    const pythonResult = await new Promise(async (resolve) => {
       const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
       
@@ -96,8 +157,8 @@ export async function POST(request) {
 
       const timeout = setTimeout(() => {
         pythonProcess.kill();
-        resolve({ error: 'Analysis timed out. The model is too slow for this article.' });
-      }, 14000);
+        resolve({ timeout: true });
+      }, 12000);
 
       pythonProcess.stdout.on('data', (data) => { output += data.toString(); });
       pythonProcess.stderr.on('data', (data) => { error += data.toString(); });
@@ -105,14 +166,31 @@ export async function POST(request) {
       pythonProcess.on('close', (code) => {
         clearTimeout(timeout);
         if (code !== 0) {
-          try { resolve(JSON.parse(error)); } catch (e) { resolve({ error: `Backend error (${code})` }); }
+          resolve({ error: true });
         } else {
-          try { resolve(JSON.parse(output)); } catch (e) { reject(new Error('Parse error')); }
+          try { resolve(JSON.parse(output)); } catch (e) { resolve({ error: true }); }
         }
       });
     });
 
-    return NextResponse.json(resultData);
+    // 2. If Python worked, return it
+    if (pythonResult && !pythonResult.timeout && !pythonResult.error) {
+      return NextResponse.json(pythonResult);
+    }
+
+    // 3. 🔹 CLOUD FALLBACK (If Python failed/timed out on Vercel)
+    console.log("Python failed or timed out, switching to Node Cloud Fallback...");
+    const contentToAnalyze = existingContent || await scrapeArticleNode(articleUrl);
+    const cloudBiasResult = await callCloudBiasNode(contentToAnalyze);
+    
+    if (cloudBiasResult) {
+      return NextResponse.json(cloudBiasResult);
+    }
+
+    return NextResponse.json({ 
+      error: 'Analysis failed. The article might be too long or the server is busy. Please try again.' 
+    }, { status: 500 });
+
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Analysis failed' }, { status: 500 });
   }
