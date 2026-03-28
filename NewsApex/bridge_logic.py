@@ -50,7 +50,9 @@ def main():
                     "urlToImage": a.get("image_url"),
                     "description": a.get("snippet")
                 })
-            print_json({"articles": transformed})
+            # Ensure only the JSON is printed to stdout
+            print(json.dumps({"articles": transformed}))
+            return
 
         elif args.action == 'get_summary':
             if not args.url and not args.content:

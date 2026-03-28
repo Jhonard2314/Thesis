@@ -341,8 +341,15 @@ class NewsService:
 
     def fetch_all_news(self, query=None, category=None, language="en"):
         all_articles = []
-        all_articles.extend(self.fetch_newsdata(query, category, language))
-        all_articles.extend(self.fetch_guardian(query, category))
+        try:
+            all_articles.extend(self.fetch_newsdata(query, category, language))
+        except Exception as e:
+            print(f"NewsData error: {e}", file=sys.stderr)
+            
+        try:
+            all_articles.extend(self.fetch_guardian(query, category))
+        except Exception as e:
+            print(f"Guardian error: {e}", file=sys.stderr)
 
         unique_articles = []
         seen_titles = set()
