@@ -20,6 +20,11 @@ COPY hf_requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r hf_requirements.txt
 
+# Pre-download the BERT base model during build to speed up startup
+RUN python -c "from transformers import BertTokenizer, BertForSequenceClassification; \
+    BertTokenizer.from_pretrained('bert-base-uncased'); \
+    BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)"
+
 # Copy the rest of the application code
 COPY . .
 

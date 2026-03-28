@@ -68,6 +68,10 @@ def analyze(request: AnalysisRequest):
         if not content:
             return {"error": "Could not retrieve content for this article."}
 
+        # Ensure model is loaded (pre-load should have handled this, but be safe)
+        if not service.bias_model:
+            service.load_local_bias_model()
+
         if request.action == "get_summary":
             summary = service.summarize_content(content[:3000])
             return {
@@ -85,6 +89,14 @@ def analyze(request: AnalysisRequest):
 
             # 2. Analyze sentences in a single batch
             batch_results = service.rate_bias_batch(analysis_sentences)
+            
+            # Check if all results are "Offline" or "Error"
+            is_offline = all(res.get("label") in ["Offline", "Error"] for res in batch_results)
+            if is_offline:
+                return {
+                    "error": "The bias detection model is currently offline or failing to load.",
+                    "details": batch_results[0].get("reasoning", "Unknown error")
+                }
             
             # 3. Get Summary
             summary = service.summarize_content(content)
