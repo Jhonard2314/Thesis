@@ -1,0 +1,7 @@
+STABLE_BACKUP/
+node_modules/
+.next/
+.git/
+__pycache__/
+*.pyc
+.env
