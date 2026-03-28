@@ -24,6 +24,12 @@ export async function GET(request) {
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
       const pythonProcess = spawn(pythonCommand, [scriptPath, ...args.slice(1)], {});
 
+      // Set a 9-second timeout to avoid Vercel's 10s FUNCTION_INVOCATION_TIMEOUT
+      const timeout = setTimeout(() => {
+        pythonProcess.kill();
+        reject(new Error('Backend process timed out. The news fetch is taking too long on the server.'));
+      }, 9000);
+
       let output = '';
       let error = '';
 
@@ -36,6 +42,7 @@ export async function GET(request) {
       });
 
       pythonProcess.on('close', (code) => {
+        clearTimeout(timeout);
         if (code !== 0) {
           console.error(`Python process exited with code ${code}. Error: ${error}`);
           // If Python fails, return the error as a JSON object so the frontend can display it

@@ -380,39 +380,9 @@ class NewsService:
         except:
             pass
 
-        # --- SCRAPABILITY FILTER ---
-        # We only want to show articles that we can actually scrape content from.
-        # Since scraping is slow, we use a thread pool and limit the number of articles we check.
-        filtered_articles = []
-        # Limit to top 15 most recent/relevant articles to ensure fast response time
-        articles_to_check = unique_articles[:15]
-        
-        def check_article(article):
-            url = article.get("link")
-            if not url:
-                return None
-            
-            # Simple check: can we get content?
-            content = self.get_full_content(url)
-            if content:
-                # Store content temporarily to avoid re-scraping if needed, 
-                # but for now we just return the article if it's scrapable
-                return article
-            return None
-
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            results = list(executor.map(check_article, articles_to_check))
-            filtered_articles = [r for r in results if r is not None]
-
-        # If we have very few articles after filtering, maybe check a few more 
-        # but don't exceed the API timeout
-        if len(filtered_articles) < 5 and len(unique_articles) > 15:
-            extra_to_check = unique_articles[15:25]
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                extra_results = list(executor.map(check_article, extra_to_check))
-                filtered_articles.extend([r for r in extra_results if r is not None])
-
-        return filtered_articles
+        # Return the unique articles directly to avoid timeout on Vercel.
+        # Scraping will happen on-demand when an article is clicked.
+        return unique_articles[:20]
 
     def get_full_content(self, url):
         try:
