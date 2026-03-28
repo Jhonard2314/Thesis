@@ -20,6 +20,13 @@ def print_json(data):
 
 def main():
     try:
+        # Check for essential modules before starting
+        try:
+            import requests
+        except ImportError:
+            print_json({"error": "Essential Python libraries (requests) are not installed on the server. Deployment environment is incomplete."})
+            return
+
         parser = argparse.ArgumentParser(description='Bridge logic for NewsApex UI')
         parser.add_argument('action', choices=['fetch_news', 'get_summary', 'analyze_bias'], help='Action to perform')
         parser.add_argument('--query', help='Search query for news')

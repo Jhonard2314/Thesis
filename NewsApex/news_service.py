@@ -1,11 +1,20 @@
-import requests
+try:
+    import requests
+except ImportError:
+    print("CRITICAL ERROR: 'requests' library not installed. Run 'pip install requests'", file=sys.stderr)
+    sys.exit(1)
+
 import os
 import re
 from dotenv import load_dotenv
-from newspaper import Article, Config
-from huggingface_hub import InferenceClient
+
+# Optional imports moved inside methods or wrapped in try-except
+try:
+    from huggingface_hub import InferenceClient
+except ImportError:
+    InferenceClient = None
+
 from concurrent.futures import ThreadPoolExecutor
-import sys
 
 # Add current directory to path for bias_module integration
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -32,21 +41,27 @@ class NewsService:
         self.hf_token = os.getenv("HF_TOKEN")
         
         self.session = requests.Session()
-        self.config = Config()
-        self.config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-        self.config.request_timeout = 20
-        self.config.fetch_images = False
-        self.config.memoize_articles = False
-        self.config.MAX_TEXT = 100000 # Ensure we get as much text as possible
+        
+        # Newspaper config initialization
+        self.config = None
+        try:
+            from newspaper import Config
+            self.config = Config()
+            self.config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+            self.config.request_timeout = 20
+            self.config.fetch_images = False
+            self.config.memoize_articles = False
+            self.config.MAX_TEXT = 100000 
+        except ImportError:
+            print("Warning: newspaper3k not installed. Article scraping will be unavailable.", file=sys.stderr)
         
         # Initialize HF Client for summarization and fallback bias detection
-        if self.hf_token:
+        self.hf_client = None
+        if self.hf_token and InferenceClient:
             try:
                 self.hf_client = InferenceClient(token=self.hf_token)
             except:
                 self.hf_client = None
-        else:
-            self.hf_client = None
 
         # --- BIAS MODULE INTEGRATION ---
         self.bias_model = None

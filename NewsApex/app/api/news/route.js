@@ -37,7 +37,15 @@ export async function GET(request) {
 
       pythonProcess.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`News fetch failed: ${error}`));
+          console.error(`Python process exited with code ${code}. Error: ${error}`);
+          // If Python fails, return the error as a JSON object so the frontend can display it
+          try {
+            // Check if 'error' string is already JSON
+            const errData = JSON.parse(error);
+            resolve(errData);
+          } catch (e) {
+            resolve({ error: `Python Error (Code ${code}): ${error || 'Unknown error'}` });
+          }
         } else {
           try {
             resolve(JSON.parse(output));

@@ -41,7 +41,13 @@ export default function Home() {
 
       const response = await fetch(`/api/news?${params}`);
       
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Server error: ${text.substring(0, 200)}`);
+      }
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch news');

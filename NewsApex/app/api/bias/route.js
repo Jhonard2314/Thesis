@@ -37,7 +37,13 @@ export async function POST(request) {
       pythonProcess.on('close', (code) => {
         if (code !== 0) {
           console.error(`Action ${action} failed with code ${code}: ${error}`);
-          reject(new Error(`Operation failed: ${error}`));
+          // Return the error as a JSON object so the frontend can display it
+          try {
+            const errData = JSON.parse(error);
+            resolve(errData);
+          } catch (e) {
+            resolve({ error: `Python Error (Code ${code}): ${error || 'Unknown error'}` });
+          }
         } else {
           try {
             console.log(`Action ${action} successful for: ${articleUrl}`);
