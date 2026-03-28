@@ -176,48 +176,76 @@ class NewsService:
 
     def rate_bias_batch(self, sentences):
         """
-        Rates bias for multiple sentences in a single batch for maximum performance.
+        Rates bias for multiple sentences. Uses local model if available,
+        otherwise falls back to Hugging Face Cloud API.
         """
         if not sentences:
             return []
 
+        # 1. Try Local Model first (Preferred for Development)
         if not self.bias_model:
             self.load_local_bias_model()
 
-        if not self.bias_model or not self.bias_tokenizer:
-            return [{"label": "Offline", "score": 0.0, "reasoning": "Model not available."} for _ in sentences]
-
-        try:
-            import torch
-            inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=128)
-            
-            with torch.no_grad():
-                outputs = self.bias_model(**inputs)
-                probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        if self.bias_model and self.bias_tokenizer:
+            try:
+                import torch
+                inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=128)
                 
-                results = []
-                for i, prob in enumerate(probs):
-                    bias_score = prob[1].item()
-                    label = "Biased" if bias_score > 0.5 else "Factual"
-                    reasoning = self.get_bias_reasoning(sentences[i], label, bias_score)
+                with torch.no_grad():
+                    outputs = self.bias_model(**inputs)
+                    probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
                     
+                    results = []
+                    for i, prob in enumerate(probs):
+                        bias_score = prob[1].item()
+                        label = "Biased" if bias_score > 0.5 else "Factual"
+                        reasoning = self.get_bias_reasoning(sentences[i], label, bias_score)
+                        
+                        results.append({
+                            "label": label,
+                            "score": bias_score,
+                            "reasoning": reasoning
+                        })
+                    return results
+            except Exception as e:
+                print(f"Local Batch Analysis Error: {e}", file=sys.stderr)
+
+        # 2. Fallback to Cloud API (Crucial for Vercel/Production)
+        hf_client = self._get_hf_client()
+        if hf_client:
+            print("Falling back to Cloud API for bias analysis...", file=sys.stderr)
+            try:
+                # Analyze sentences using a common bias detection model on HF
+                # Note: This is a fallback, so we use a standard text classification approach
+                results = []
+                for s in sentences:
+                    # Using a widely available model for bias/sentiment fallback
+                    # 'valhalla/distilbart-mnli-12-1' or similar can be used for zero-shot
+                    # For simplicity and speed, we use a basic sentiment/bias proxy if specific model isn't available
+                    response = hf_client.text_classification(s, model="facebook/roberta-hate-speech-dynabench-r4-target")
+                    
+                    # Map response to our format
+                    bias_score = 0.0
+                    for item in response:
+                        if item['label'] == 'hate': # Simplified proxy for bias in cloud fallback
+                            bias_score = item['score']
+                    
+                    label = "Biased" if bias_score > 0.5 else "Factual"
                     results.append({
                         "label": label,
                         "score": bias_score,
-                        "reasoning": reasoning
+                        "reasoning": f"Cloud Analysis: {label} (Score: {round(bias_score*100, 1)}%)"
                     })
                 return results
-        except Exception as e:
-            print(f"Batch Analysis Error: {e}", file=sys.stderr)
-            return [self.rate_bias(s) for s in sentences]
+            except Exception as e:
+                print(f"Cloud Fallback Error: {e}", file=sys.stderr)
+
+        return [{"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."} for _ in sentences]
 
     def rate_bias(self, text):
         """
-        Rates bias for a given text and provides detailed reasoning and top biased words.
+        Rates bias for a given text. Uses local model if available, otherwise falls back to Cloud.
         """
-        if not self.bias_model:
-            self.load_local_bias_model()
-
         if not text or len(text.strip()) < 10:
             return {"label": "Neutral", "score": 0.0, "reasoning": "Text too short for analysis."}
 
@@ -226,6 +254,10 @@ class NewsService:
             return {"label": "Neutral", "score": 0.0, "reasoning": "No valid content found."}
         
         filtered_text = " ".join(filtered_sentences)
+
+        # 1. Try Local Model (Preferred)
+        if not self.bias_model:
+            self.load_local_bias_model()
 
         if self.bias_model and self.bias_tokenizer:
             try:
@@ -250,6 +282,26 @@ class NewsService:
                     }
             except Exception as e:
                 print(f"Local Model Prediction Error: {e}", file=sys.stderr)
+
+        # 2. Fallback to Cloud (Production)
+        hf_client = self._get_hf_client()
+        if hf_client:
+            try:
+                response = hf_client.text_classification(filtered_text[:500], model="facebook/roberta-hate-speech-dynabench-r4-target")
+                bias_score = 0.0
+                for item in response:
+                    if item['label'] == 'hate':
+                        bias_score = item['score']
+                
+                label = "Biased" if bias_score > 0.5 else "Factual"
+                return {
+                    "label": label,
+                    "score": bias_score,
+                    "reasoning": f"Cloud Analysis: {label}",
+                    "top_words": [] # Gradient analysis only works locally
+                }
+            except Exception as e:
+                print(f"Cloud Fallback Prediction Error: {e}", file=sys.stderr)
 
         return {"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."}
 
