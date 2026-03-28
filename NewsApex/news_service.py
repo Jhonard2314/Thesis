@@ -218,7 +218,7 @@ class NewsService:
             future_newsdata = executor.submit(self.fetch_newsdata, query, category, language)
             future_guardian = executor.submit(self.fetch_guardian, query, category)
             
-            # Collect results (they should finish much faster together)
+            # Collect results
             try:
                 all_articles.extend(future_newsdata.result())
             except Exception as e:
@@ -242,23 +242,71 @@ class NewsService:
         except:
             pass
 
-        return unique_articles[:20]
+        # --- SCRAPABILITY FILTER ---
+        # Only show articles that we can actually extract content from.
+        filtered_articles = []
+        # Limit the number of articles we check to keep it fast
+        articles_to_check = unique_articles[:30]
+        
+        def check_article(article):
+            url = article.get("link")
+            if not url:
+                return None
+            
+            # Use a slightly shorter timeout for the background check
+            content = self.get_full_content(url)
+            if content and len(content) > 400:
+                # Basic check for error messages in the text
+                error_terms = ["javascript is disabled", "enable cookies", "paywall", "subscribe to read"]
+                content_lower = content.lower()
+                if any(term in content_lower for term in error_terms):
+                    return None
+                return article
+            return None
+
+        # Check articles concurrently
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = list(executor.map(check_article, articles_to_check))
+            filtered_articles = [r for r in results if r is not None]
+
+        return filtered_articles[:20]
 
     def get_full_content(self, url):
         try:
-            headers = {'User-Agent': self.config.browser_user_agent}
-            response = self.session.get(url, headers=headers, timeout=20)
+            headers = {
+                'User-Agent': self.config.browser_user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive',
+            }
+            response = self.session.get(url, headers=headers, timeout=15)
             if response.status_code != 200: return None
+            
+            # Quick check for JS-only pages or common error indicators in HTML
+            html_lower = response.text.lower()
+            if "javascript is disabled" in html_lower or "enable javascript" in html_lower:
+                return None
+
+            from newspaper import Article
             article = Article(url, config=self.config)
             article.set_html(response.text)
             article.parse()
+            
             text = article.text.strip()
-            # Be more lenient with text length for local extraction
-            if not text or len(text) < 200:
+            
+            # Final validation of the extracted text
+            if not text or len(text) < 300: 
                 return None
+                
+            # Filter out pages that extracted only UI elements/errors
+            system_errors = ["please enable javascript", "browser not supported", "access denied", "forbidden"]
+            text_lower = text.lower()
+            if any(err in text_lower for err in system_errors):
+                return None
+                
             return text
         except Exception as e:
-            print(f"Extraction error: {e}", file=sys.stderr)
+            # print(f"Extraction error: {e}", file=sys.stderr)
             return None
 
     def summarize_content(self, text):
