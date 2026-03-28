@@ -15,7 +15,7 @@ async function fetchNewsData(query, category) {
   if (category && category !== 'general') url.searchParams.append("category", category);
 
   try {
-    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
     const data = await response.json();
     if (data.status === "success") {
       return (data.results || []).map(r => ({
@@ -54,7 +54,7 @@ async function fetchGuardian(query, category) {
   }
 
   try {
-    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
     const data = await response.json();
     const results = data.response?.results || [];
     return results.map(r => ({
@@ -95,6 +95,13 @@ export async function GET(request) {
         seenTitles.add(article.title.toLowerCase());
       }
     }
+
+    // Sort by publication date (descending) - Restoring the filter/sorting logic
+    uniqueArticles.sort((a, b) => {
+      const dateA = new Date(a.publishedAt || 0);
+      const dateB = new Date(b.publishedAt || 0);
+      return dateB - dateA;
+    });
 
     // Return the results quickly
     return NextResponse.json({
