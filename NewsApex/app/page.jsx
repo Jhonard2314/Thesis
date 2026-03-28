@@ -289,17 +289,7 @@ export default function Home() {
         onRunBiasAnalysis={handleRunBiasAnalysis}
       />
 
-      {/* Footer */}
-      <footer className="bg-[#1b1b1b] mt-16 border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6 text-center text-sm text-gray-300">
-          <div>
-            <span>
-              &copy; {new Date().getFullYear()} NewsApex. All rights reserved.
-            </span>
-            <span className='text-blue-200 font-bold'> NEXTER </span>
-          </div>
-        </div>
-      </footer>
+      {/* Footer removed per user request */}
     </div>
   );
 }
