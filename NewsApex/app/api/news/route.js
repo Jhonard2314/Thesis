@@ -4,10 +4,37 @@ import path from 'path';
 
 export const maxDuration = 60; // Set max duration to 60 seconds
 
+const HF_SPACE_URL = process.env.HF_SPACE_URL;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('query') || '';
   const category = searchParams.get('category') || '';
+
+  // 🔹 In Production (Vercel), use the Hugging Face API to avoid 10s timeouts
+  if (IS_PRODUCTION && HF_SPACE_URL) {
+    try {
+      const url = new URL(`${HF_SPACE_URL}/fetch_news`);
+      if (query) url.searchParams.append('query', query);
+      if (category) url.searchParams.append('category', category);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        next: { revalidate: 300 } // Cache for 5 minutes
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return NextResponse.json(data);
+      } else {
+        console.error(`HF Space error: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Failed to reach HF Space:', error);
+    }
+  }
 
   try {
     const newsData = await new Promise((resolve, reject) => {

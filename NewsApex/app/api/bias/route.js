@@ -4,7 +4,8 @@ import path from 'path';
 
 export const maxDuration = 60; // Set max duration to 60 seconds
 
-const IS_VERCEL = process.env.VERCEL === '1';
+const HF_SPACE_URL = process.env.HF_SPACE_URL;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
 export async function POST(request) {
   try {
@@ -15,6 +16,30 @@ export async function POST(request) {
 
     if (!articleUrl && !existingContent) {
       return NextResponse.json({ error: 'Article URL or content is required' }, { status: 400 });
+    }
+
+    // 🔹 In Production (Vercel), use the Hugging Face API to avoid 10s timeouts
+    if (IS_PRODUCTION && HF_SPACE_URL) {
+      try {
+        const response = await fetch(`${HF_SPACE_URL}/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: articleUrl,
+            content: existingContent,
+            action: action
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          return NextResponse.json(data);
+        } else {
+          console.error(`HF Space error: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to reach HF Space:', error);
+      }
     }
 
     // 🔹 Restore Python Bridge as the Primary Logic (Fixes Local Host)
@@ -32,12 +57,12 @@ export async function POST(request) {
 
       // 🔹 Environment-Aware Timeout
       // On Vercel, we must finish in 10s. On Local, we can wait much longer for BERT.
-      const timeoutLimit = IS_VERCEL ? 9000 : 120000; // 9s for Vercel, 2 mins for Local
+      const timeoutLimit = IS_PRODUCTION ? 9000 : 120000; // 9s for Vercel, 2 mins for Local
       
       const timeout = setTimeout(() => {
         pythonProcess.kill();
         resolve({ 
-          error: IS_VERCEL 
+          error: IS_PRODUCTION 
             ? 'Analysis timed out on the server. The local BERT model is too heavy for Vercel.' 
             : 'Local analysis timed out. Check if your Python environment is responsive.'
         });

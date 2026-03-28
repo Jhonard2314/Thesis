@@ -62,10 +62,24 @@ class NewsService:
             from transformers import BertTokenizer, BertForSequenceClassification, BertConfig
             from bias_module import config as bias_config
             base_path = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(base_path, "bias_module", "models", "bert_babe.pt")
+            # Try multiple possible locations for the model
+            possible_paths = [
+                os.path.join(base_path, "bias_module", "models", "bert_babe.pt"),
+                os.path.join(base_path, "bert_babe.pt"),
+                os.path.join(os.getcwd(), "bert_babe.pt"),
+                "/app/bert_babe.pt"
+            ]
+            
+            model_path = None
+            for p in possible_paths:
+                if os.path.exists(p):
+                    model_path = p
+                    break
+            
             model_cache_dir = os.path.join(base_path, "bias_module", "data", "model_cache")
             
-            if os.path.exists(model_path):
+            if model_path:
+                print(f"Loading model from: {model_path}", file=sys.stderr)
                 if os.path.exists(model_cache_dir):
                     from transformers import BertConfig
                     self.bias_tokenizer = BertTokenizer.from_pretrained(model_cache_dir)
