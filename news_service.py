@@ -351,11 +351,12 @@ class NewsService:
         except: return []
 
     def fetch_all_news(self, query=None, category=None, language="en"):
+        # FASTEST POSSIBLE FETCH: No scraping, no sorting, just return results
         all_articles = []
         all_articles.extend(self.fetch_newsdata(query, category, language))
         all_articles.extend(self.fetch_guardian(query, category))
 
-        # Deduplicate articles based on title
+        # Minimal deduplication and return immediately
         unique_articles = []
         seen_titles = set()
         for article in all_articles:
@@ -364,15 +365,7 @@ class NewsService:
                 unique_articles.append(article)
                 seen_titles.add(title.lower())
         
-        # Sort by publication date
-        try:
-            unique_articles.sort(key=lambda x: x.get('pubDate', ''), reverse=True)
-        except:
-            pass
-
-        # NOTE: Scrapability filter disabled to prevent timeouts on Vercel
-        # We now prioritize speed for the initial news load.
-        return unique_articles[:20]
+        return unique_articles[:15]
 
     def get_full_content(self, url, timeout=None):
         try:
