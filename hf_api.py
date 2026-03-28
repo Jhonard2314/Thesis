@@ -3,6 +3,7 @@ import sys
 import json
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # Add current directory to path
@@ -74,6 +75,14 @@ def analyze(request: AnalysisRequest):
 
         if request.action == "get_summary":
             summary = service.summarize_content(content[:3000])
+            if not summary:
+                # 🔹 Fallback: take the first 3-4 sentences of the first non-empty paragraph
+                paragraphs = [p for p in content.split('\n') if len(p.strip()) > 100]
+                if paragraphs:
+                    summary = paragraphs[0][:350].strip() + "..."
+                else:
+                    summary = content[:350].strip() + "..."
+            
             return {
                 "summary": summary,
                 "full_content": content
@@ -85,7 +94,7 @@ def analyze(request: AnalysisRequest):
             analysis_sentences = sentences[:25]
             
             if not analysis_sentences:
-                return {"error": "No valid content found to analyze."}
+                return JSONResponse(status_code=400, content={"error": "No valid content found to analyze."})
 
             # 2. Analyze sentences in a single batch
             batch_results = service.rate_bias_batch(analysis_sentences)
@@ -93,10 +102,13 @@ def analyze(request: AnalysisRequest):
             # Check if all results are "Offline" or "Error"
             is_offline = all(res.get("label") in ["Offline", "Error"] for res in batch_results)
             if is_offline:
-                return {
-                    "error": "The bias detection model is currently offline or failing to load.",
-                    "details": batch_results[0].get("reasoning", "Unknown error")
-                }
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "error": "The bias detection model is currently offline or failing to load.",
+                        "details": batch_results[0].get("reasoning", "Unknown error")
+                    }
+                )
             
             # 3. Get Summary - Use a more specific generation logic
             summary = service.summarize_content(content)
