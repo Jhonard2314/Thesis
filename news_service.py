@@ -301,7 +301,8 @@ class NewsService:
         if category and category != 'general': 
             params["category"] = category
         try:
-            res = self.session.get(url, params=params, timeout=10)
+            # Tight timeout to avoid hanging the entire process
+            res = self.session.get(url, params=params, timeout=5)
             # print(f"DEBUG: NewsData.io API response status: {res.status_code}")
             data = res.json()
             # print(f"DEBUG: NewsData.io raw data: {str(data)[:500]}...") # Print first 500 chars
@@ -337,7 +338,8 @@ class NewsService:
             params["section"] = category_map[category]
 
         try:
-            res = self.session.get(url, params=params, timeout=10)
+            # Tight timeout to avoid hanging the entire process
+            res = self.session.get(url, params=params, timeout=5)
             data = res.json()
             results = data.get("response", {}).get("results", [])
             return [{
@@ -351,10 +353,22 @@ class NewsService:
         except: return []
 
     def fetch_all_news(self, query=None, category=None, language="en"):
-        # FASTEST POSSIBLE FETCH: No scraping, no sorting, just return results
+        # FASTEST POSSIBLE FETCH: Parallelize the two API calls
         all_articles = []
-        all_articles.extend(self.fetch_newsdata(query, category, language))
-        all_articles.extend(self.fetch_guardian(query, category))
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # Kick off both API calls at the same time
+            future_newsdata = executor.submit(self.fetch_newsdata, query, category, language)
+            future_guardian = executor.submit(self.fetch_guardian, query, category)
+            
+            # Collect results (they should finish much faster together)
+            try:
+                all_articles.extend(future_newsdata.result())
+            except: pass
+            
+            try:
+                all_articles.extend(future_guardian.result())
+            except: pass
 
         # Minimal deduplication and return immediately
         unique_articles = []
