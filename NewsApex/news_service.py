@@ -6,8 +6,11 @@ from dotenv import load_dotenv
 from newspaper import Article, Config
 from huggingface_hub import InferenceClient
 from concurrent.futures import ThreadPoolExecutor
-import torch
-from transformers import BertTokenizer, BertForSequenceClassification
+import sys
+
+# Move heavy AI imports inside methods to speed up news fetch startup
+# import torch
+# from transformers import BertTokenizer, BertForSequenceClassification
 
 # Add current directory to path for imports
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +58,8 @@ class NewsService:
 
     def load_local_bias_model(self):
         try:
+            import torch
+            from transformers import BertTokenizer, BertForSequenceClassification, BertConfig
             from bias_module import config as bias_config
             base_path = os.path.dirname(os.path.abspath(__file__))
             model_path = os.path.join(base_path, "bias_module", "models", "bert_babe.pt")
@@ -83,6 +88,7 @@ class NewsService:
         if not self.bias_model or not self.bias_tokenizer:
             return []
         try:
+            import torch
             encoding = self.bias_tokenizer(text, return_tensors="pt", truncation=True, padding="max_length", max_length=128)
             input_ids = encoding["input_ids"]
             attention_mask = encoding["attention_mask"]
@@ -124,6 +130,7 @@ class NewsService:
         if not self.bias_model or not self.bias_tokenizer:
             return [{"label": "Offline", "score": 0.0, "reasoning": "Model not available."} for _ in sentences]
         try:
+            import torch
             inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=128)
             with torch.no_grad():
                 outputs = self.bias_model(**inputs)
@@ -148,6 +155,7 @@ class NewsService:
         filtered_text = " ".join(filtered_sentences)
         if self.bias_model and self.bias_tokenizer:
             try:
+                import torch
                 inputs = self.bias_tokenizer(filtered_text, return_tensors="pt", truncation=True, padding=True, max_length=128)
                 with torch.no_grad():
                     outputs = self.bias_model(**inputs)
@@ -202,9 +210,25 @@ class NewsService:
         except: return []
 
     def fetch_all_news(self, query=None, category=None, language="en"):
+        # FASTEST POSSIBLE FETCH: Parallelize the two API calls
         all_articles = []
-        all_articles.extend(self.fetch_newsdata(query, category, language))
-        all_articles.extend(self.fetch_guardian(query, category))
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # Kick off both API calls at the same time
+            future_newsdata = executor.submit(self.fetch_newsdata, query, category, language)
+            future_guardian = executor.submit(self.fetch_guardian, query, category)
+            
+            # Collect results (they should finish much faster together)
+            try:
+                all_articles.extend(future_newsdata.result())
+            except Exception as e:
+                print(f"NewsData error: {e}", file=sys.stderr)
+            
+            try:
+                all_articles.extend(future_guardian.result())
+            except Exception as e:
+                print(f"Guardian error: {e}", file=sys.stderr)
+
         unique_articles = []
         seen_titles = set()
         for article in all_articles:
@@ -212,9 +236,12 @@ class NewsService:
             if title and title.lower() not in seen_titles:
                 unique_articles.append(article)
                 seen_titles.add(title.lower())
+        
         try:
             unique_articles.sort(key=lambda x: x.get('pubDate', ''), reverse=True)
-        except: pass
+        except:
+            pass
+
         return unique_articles[:20]
 
     def get_full_content(self, url):
@@ -226,7 +253,9 @@ class NewsService:
             article.set_html(response.text)
             article.parse()
             text = article.text.strip()
-            if not text or len(text) < 200: return None
+            # Be more lenient with text length for local extraction
+            if not text or len(text) < 200:
+                return None
             return text
         except Exception as e:
             print(f"Extraction error: {e}", file=sys.stderr)

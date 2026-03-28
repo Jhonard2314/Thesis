@@ -28,7 +28,7 @@ export async function GET(request) {
       const timeout = setTimeout(() => {
         pythonProcess.kill();
         reject(new Error('Backend process timed out. The news fetch is taking too long.'));
-      }, 30000);
+      }, 60000);
 
       let output = '';
       let error = '';
