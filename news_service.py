@@ -436,7 +436,8 @@ class NewsService:
     def get_full_content(self, url, timeout=None):
         try:
             if timeout is None:
-                timeout = self.config.request_timeout
+                # Use a slightly more generous timeout for summarization/bias phase
+                timeout = 15
 
             headers = {
                 'User-Agent': self.config.browser_user_agent,
@@ -454,7 +455,8 @@ class NewsService:
             html_lower = response.text.lower()
             quick_fail_terms = ["subscribe to continue", "paywall", "premium access", "log in to read", "javascript is required"]
             if any(term in html_lower for term in quick_fail_terms):
-                return None
+                # Don't return None immediately if we have some content
+                pass
 
             from newspaper import Article
             article = Article(url, config=self.config)
@@ -464,23 +466,25 @@ class NewsService:
             # Use raw extracted text, no truncation or AI here.
             text = article.text.strip()
             
-            # --- STRICT SCANNING FILTER ---
-            # If text is too short, it's likely a paywall or failed extraction
-            if not text or len(text) < 400:
+            # --- RELAXED SCANNING FILTER ---
+            # Reduced from 400 to 150 to catch shorter but valid news updates (like live reports)
+            if not text or len(text) < 150:
                 return None
             
             system_errors = [
-                "javascript is required", "enable javascript", "allow cookies", "cookie policy",
-                "subscribe to continue", "log in to read", "premium access", "paywall",
+                "enable javascript", "allow cookies", "cookie policy",
                 "watch the video", "live updates", "photo gallery", "video-only",
-                "forbidden", "access denied", "403", "404"
+                "forbidden", "access denied", "404"
             ]
             text_lower = text.lower()
             if any(err in text_lower for err in system_errors):
-                return None
+                # Only fail if the text is EXTREMELY short and contains these
+                if len(text) < 300:
+                    return None
             
             return text
         except Exception as e:
+            print(f"Extraction Error for {url}: {e}", file=sys.stderr)
             return None
 
     def summarize_content(self, text):
