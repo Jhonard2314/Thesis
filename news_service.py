@@ -2,8 +2,12 @@ import requests
 import os
 import re
 from dotenv import load_dotenv
+from newspaper import Article, Config
+from huggingface_hub import InferenceClient
 from concurrent.futures import ThreadPoolExecutor
 import sys
+import torch
+from transformers import BertTokenizer, BertForSequenceClassification
 
 # Add bias_module to path for integration
 sys.path.append(os.path.join(os.getcwd(), "bias_module"))
@@ -30,39 +34,28 @@ class NewsService:
         self.hf_token = os.getenv("HF_TOKEN")
         
         self.session = requests.Session()
+        self.config = Config()
+        self.config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        self.config.request_timeout = 20
+        self.config.fetch_images = False
+        self.config.memoize_articles = False
+        self.config.MAX_TEXT = 100000 
         
-        # Initialize Config locally to avoid importing heavy libraries at top-level
-        self._config = None
-        
-        # Initialize HF Client lazily
-        self.hf_client = None
-
-    @property
-    def config(self):
-        if self._config is None:
-            from newspaper import Config
-            self._config = Config()
-            self._config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-            self._config.request_timeout = 20
-            self._config.fetch_images = False
-            self._config.memoize_articles = False
-            self._config.MAX_TEXT = 100000 
-        return self._config
-
-    def _get_hf_client(self):
-        if self.hf_client is None and self.hf_token:
+        # Initialize HF Client
+        if self.hf_token:
             try:
-                from huggingface_hub import InferenceClient
                 self.hf_client = InferenceClient(token=self.hf_token)
             except:
                 self.hf_client = None
-        return self.hf_client
+        else:
+            self.hf_client = None
+
+        self.bias_model = None
+        self.bias_tokenizer = None
 
     def load_local_bias_model(self):
         """Attempts to load the local BERT model for bias detection."""
         try:
-            import torch
-            from transformers import BertTokenizer, BertForSequenceClassification
             from bias_module import config as bias_config
             
             # Use absolute paths to ensure the model loads correctly regardless of where the service is started
@@ -71,10 +64,6 @@ class NewsService:
             model_cache_dir = os.path.join(base_path, "bias_module", "data", "model_cache")
             
             if os.path.exists(model_path):
-                # QUICK CHECK: If on Vercel, we might want to skip this if it's too slow
-                # but for now we try to load it.
-                print(f"Loading local model from {model_path}...", file=sys.stderr)
-                
                 # Load from local cache if possible to avoid HF connectivity issues
                 if os.path.exists(model_cache_dir):
                     from transformers import BertConfig
@@ -88,7 +77,6 @@ class NewsService:
                         num_labels=2
                     )
                 
-                # Load state dict with weights_only=True if available (safer)
                 self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
                 self.bias_model.eval()
                 print(f"Local bias model loaded successfully.", file=sys.stderr)
@@ -107,7 +95,6 @@ class NewsService:
             return []
 
         try:
-            import torch
             encoding = self.bias_tokenizer(
                 text,
                 return_tensors="pt",
@@ -181,19 +168,17 @@ class NewsService:
 
     def rate_bias_batch(self, sentences):
         """
-        Rates bias for multiple sentences. Uses local model if available,
-        otherwise falls back to Hugging Face Cloud API.
+        Rates bias for multiple sentences. Uses local model if available.
         """
         if not sentences:
             return []
 
-        # 1. Try Local Model first (Preferred for Development)
+        # 1. Try Local Model first
         if not self.bias_model:
             self.load_local_bias_model()
 
         if self.bias_model and self.bias_tokenizer:
             try:
-                import torch
                 inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=128)
                 
                 with torch.no_grad():
@@ -215,41 +200,11 @@ class NewsService:
             except Exception as e:
                 print(f"Local Batch Analysis Error: {e}", file=sys.stderr)
 
-        # 2. Fallback to Cloud API (Crucial for Vercel/Production)
-        hf_client = self._get_hf_client()
-        if hf_client:
-            print("Falling back to Cloud API for bias analysis...", file=sys.stderr)
-            try:
-                # Analyze sentences using a common bias detection model on HF
-                # Note: This is a fallback, so we use a standard text classification approach
-                results = []
-                for s in sentences:
-                    # Using a widely available model for bias/sentiment fallback
-                    # 'valhalla/distilbart-mnli-12-1' or similar can be used for zero-shot
-                    # For simplicity and speed, we use a basic sentiment/bias proxy if specific model isn't available
-                    response = hf_client.text_classification(s, model="facebook/roberta-hate-speech-dynabench-r4-target")
-                    
-                    # Map response to our format
-                    bias_score = 0.0
-                    for item in response:
-                        if item['label'] == 'hate': # Simplified proxy for bias in cloud fallback
-                            bias_score = item['score']
-                    
-                    label = "Biased" if bias_score > 0.5 else "Factual"
-                    results.append({
-                        "label": label,
-                        "score": bias_score,
-                        "reasoning": f"Cloud Analysis: {label} (Score: {round(bias_score*100, 1)}%)"
-                    })
-                return results
-            except Exception as e:
-                print(f"Cloud Fallback Error: {e}", file=sys.stderr)
-
         return [{"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."} for _ in sentences]
 
     def rate_bias(self, text):
         """
-        Rates bias for a given text. Uses local model if available, otherwise falls back to Cloud.
+        Rates bias for a given text. Uses local model if available.
         """
         if not text or len(text.strip()) < 10:
             return {"label": "Neutral", "score": 0.0, "reasoning": "Text too short for analysis."}
@@ -260,13 +215,12 @@ class NewsService:
         
         filtered_text = " ".join(filtered_sentences)
 
-        # 1. Try Local Model (Preferred)
+        # 1. Try Local Model
         if not self.bias_model:
             self.load_local_bias_model()
 
         if self.bias_model and self.bias_tokenizer:
             try:
-                import torch
                 inputs = self.bias_tokenizer(filtered_text, return_tensors="pt", truncation=True, padding=True, max_length=128)
                 with torch.no_grad():
                     outputs = self.bias_model(**inputs)
@@ -287,26 +241,6 @@ class NewsService:
                     }
             except Exception as e:
                 print(f"Local Model Prediction Error: {e}", file=sys.stderr)
-
-        # 2. Fallback to Cloud (Production)
-        hf_client = self._get_hf_client()
-        if hf_client:
-            try:
-                response = hf_client.text_classification(filtered_text[:500], model="facebook/roberta-hate-speech-dynabench-r4-target")
-                bias_score = 0.0
-                for item in response:
-                    if item['label'] == 'hate':
-                        bias_score = item['score']
-                
-                label = "Biased" if bias_score > 0.5 else "Factual"
-                return {
-                    "label": label,
-                    "score": bias_score,
-                    "reasoning": f"Cloud Analysis: {label}",
-                    "top_words": [] # Gradient analysis only works locally
-                }
-            except Exception as e:
-                print(f"Cloud Fallback Prediction Error: {e}", file=sys.stderr)
 
         return {"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."}
 
@@ -358,11 +292,8 @@ class NewsService:
         if category and category != 'general': 
             params["category"] = category
         try:
-            # Tight timeout to avoid hanging the entire process
-            res = self.session.get(url, params=params, timeout=5)
-            # print(f"DEBUG: NewsData.io API response status: {res.status_code}")
+            res = self.session.get(url, params=params, timeout=10)
             data = res.json()
-            # print(f"DEBUG: NewsData.io raw data: {str(data)[:500]}...") # Print first 500 chars
             if data.get("status") == "success":
                 return [{
                     "title": r.get("title"), 
@@ -395,8 +326,7 @@ class NewsService:
             params["section"] = category_map[category]
 
         try:
-            # Tight timeout to avoid hanging the entire process
-            res = self.session.get(url, params=params, timeout=5)
+            res = self.session.get(url, params=params, timeout=10)
             data = res.json()
             results = data.get("response", {}).get("results", [])
             return [{
@@ -410,24 +340,10 @@ class NewsService:
         except: return []
 
     def fetch_all_news(self, query=None, category=None, language="en"):
-        # FASTEST POSSIBLE FETCH: Parallelize the two API calls
         all_articles = []
-        
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            # Kick off both API calls at the same time
-            future_newsdata = executor.submit(self.fetch_newsdata, query, category, language)
-            future_guardian = executor.submit(self.fetch_guardian, query, category)
-            
-            # Collect results (they should finish much faster together)
-            try:
-                all_articles.extend(future_newsdata.result())
-            except: pass
-            
-            try:
-                all_articles.extend(future_guardian.result())
-            except: pass
+        all_articles.extend(self.fetch_newsdata(query, category, language))
+        all_articles.extend(self.fetch_guardian(query, category))
 
-        # Minimal deduplication and return immediately
         unique_articles = []
         seen_titles = set()
         for article in all_articles:
@@ -436,13 +352,17 @@ class NewsService:
                 unique_articles.append(article)
                 seen_titles.add(title.lower())
         
-        return unique_articles[:15]
+        try:
+            unique_articles.sort(key=lambda x: x.get('pubDate', ''), reverse=True)
+        except:
+            pass
+
+        return unique_articles[:20]
 
     def get_full_content(self, url, timeout=None):
         try:
             if timeout is None:
-                # Use a slightly more generous timeout for summarization/bias phase
-                timeout = 15
+                timeout = 20
 
             headers = {
                 'User-Agent': self.config.browser_user_agent,
@@ -456,55 +376,28 @@ class NewsService:
             if response.status_code != 200:
                 return None
             
-            # Fast check: skip known paywall messages in raw HTML
-            html_lower = response.text.lower()
-            quick_fail_terms = ["subscribe to continue", "paywall", "premium access", "log in to read", "javascript is required"]
-            if any(term in html_lower for term in quick_fail_terms):
-                # Don't return None immediately if we have some content
-                pass
-
-            from newspaper import Article
             article = Article(url, config=self.config)
             article.set_html(response.text)
             article.parse()
             
-            # Use raw extracted text, no truncation or AI here.
             text = article.text.strip()
-            
-            # --- RELAXED SCANNING FILTER ---
-            # Reduced from 400 to 150 to catch shorter but valid news updates (like live reports)
-            if not text or len(text) < 150:
+            if not text or len(text) < 400:
                 return None
-            
-            system_errors = [
-                "enable javascript", "allow cookies", "cookie policy",
-                "watch the video", "live updates", "photo gallery", "video-only",
-                "forbidden", "access denied", "404"
-            ]
-            text_lower = text.lower()
-            if any(err in text_lower for err in system_errors):
-                # Only fail if the text is EXTREMELY short and contains these
-                if len(text) < 300:
-                    return None
             
             return text
         except Exception as e:
-            print(f"Extraction Error for {url}: {e}", file=sys.stderr)
             return None
 
     def summarize_content(self, text):
-        hf_client = self._get_hf_client()
-        if not hf_client or not text or len(text.strip()) < 100:
+        if not self.hf_client or not text or len(text.strip()) < 100:
             return None
         try:
-            truncated_text = text[:2000] # Reduced from 3500 to 2000
-            # Use a faster, smaller summarization model
-            response = hf_client.summarization(
+            truncated_text = text[:3500]
+            response = self.hf_client.summarization(
                 truncated_text,
                 model="facebook/bart-large-cnn" 
             )
             
-            # Extract summary_text safely
             if hasattr(response, 'summary_text'):
                 return response.summary_text
             if isinstance(response, list) and len(response) > 0:
@@ -514,7 +407,6 @@ class NewsService:
             
             return str(response)
         except Exception as e:
-            # Silently fail as requested
             return None
 
 if __name__ == "__main__":
