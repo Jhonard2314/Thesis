@@ -10,7 +10,9 @@ import torch
 from transformers import BertTokenizer, BertForSequenceClassification
 
 # Add bias_module to path for integration
-sys.path.append(os.path.join(os.getcwd(), "bias_module"))
+base_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(base_path)
+sys.path.append(os.path.join(base_path, "bias_module"))
 
 load_dotenv()
 
@@ -56,32 +58,42 @@ class NewsService:
     def load_local_bias_model(self):
         """Attempts to load the local BERT model for bias detection."""
         try:
-            from bias_module import config as bias_config
-            
-            # Use absolute paths to ensure the model loads correctly regardless of where the service is started
+            # Handle both structured (local) and flat (HF Space) layouts
             base_path = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(base_path, "bias_module", "models", "bert_babe.pt")
-            model_cache_dir = os.path.join(base_path, "bias_module", "data", "model_cache")
             
-            if os.path.exists(model_path):
-                # Load from local cache if possible to avoid HF connectivity issues
-                if os.path.exists(model_cache_dir):
-                    from transformers import BertConfig
-                    self.bias_tokenizer = BertTokenizer.from_pretrained(model_cache_dir)
-                    config = BertConfig.from_pretrained(os.path.join(model_cache_dir, "config.json"))
-                    self.bias_model = BertForSequenceClassification(config)
-                else:
-                    self.bias_tokenizer = BertTokenizer.from_pretrained(bias_config.MODEL_NAME)
-                    self.bias_model = BertForSequenceClassification.from_pretrained(
-                        bias_config.MODEL_NAME,
-                        num_labels=2
-                    )
+            # Potential model locations
+            possible_paths = [
+                os.path.join(base_path, "bias_module", "models", "bert_babe.pt"), # Local structure
+                os.path.join(base_path, "bert_babe.pt"),                         # HF Flat structure
+                os.path.join(os.getcwd(), "bert_babe.pt")                        # Current Dir
+            ]
+            
+            model_path = None
+            for p in possible_paths:
+                if os.path.exists(p):
+                    model_path = p
+                    break
+            
+            if model_path:
+                # Import config safely
+                try:
+                    from bias_module import config as bias_config
+                    model_name = bias_config.MODEL_NAME
+                except ImportError:
+                    # Fallback for flat structure
+                    model_name = "bert-base-uncased" 
+                
+                self.bias_tokenizer = BertTokenizer.from_pretrained(model_name)
+                self.bias_model = BertForSequenceClassification.from_pretrained(
+                    model_name,
+                    num_labels=2
+                )
                 
                 self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
                 self.bias_model.eval()
-                print(f"Local bias model loaded successfully.", file=sys.stderr)
+                print(f"Local bias model loaded successfully from {model_path}", file=sys.stderr)
             else:
-                print(f"Model file not found at {model_path}", file=sys.stderr)
+                print(f"Model file 'bert_babe.pt' not found in any expected location.", file=sys.stderr)
         except Exception as e:
             print(f"Error loading local bias model: {e}", file=sys.stderr)
             self.bias_model = None
@@ -179,7 +191,8 @@ class NewsService:
 
         if self.bias_model and self.bias_tokenizer:
             try:
-                inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=128)
+                # Use a larger max_length for better sentence coverage (up to BERT's 512 limit)
+                inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=256)
                 
                 with torch.no_grad():
                     outputs = self.bias_model(**inputs)
@@ -204,45 +217,43 @@ class NewsService:
 
     def rate_bias(self, text):
         """
-        Rates bias for a given text. Uses local model if available.
+        Rates overall bias for a text by aggregating scores from individual sentences.
+        This is more accurate than analyzing the entire block at once, which leads to truncation.
         """
         if not text or len(text.strip()) < 10:
             return {"label": "Neutral", "score": 0.0, "reasoning": "Text too short for analysis."}
 
-        filtered_sentences = self.split_into_sentences(text)
-        if not filtered_sentences:
-            return {"label": "Neutral", "score": 0.0, "reasoning": "No valid content found."}
+        # 1. Get filtered sentences
+        sentences = self.split_into_sentences(text)
+        if not sentences:
+            return {"label": "Neutral", "score": 0.0, "reasoning": "No valid content found after filtering."}
         
-        filtered_text = " ".join(filtered_sentences)
+        # 2. Analyze sentences in batches (up to 25 to avoid OOM)
+        analysis_batch = sentences[:25]
+        results = self.rate_bias_batch(analysis_batch)
+        
+        if not results or all(r.get("label") == "Offline" for r in results):
+            return {"label": "Offline", "score": 0.0, "reasoning": "Model failed to analyze sentences."}
 
-        # 1. Try Local Model
-        if not self.bias_model:
-            self.load_local_bias_model()
-
-        if self.bias_model and self.bias_tokenizer:
-            try:
-                inputs = self.bias_tokenizer(filtered_text, return_tensors="pt", truncation=True, padding=True, max_length=128)
-                with torch.no_grad():
-                    outputs = self.bias_model(**inputs)
-                    probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                    
-                    bias_score = probs[0][1].item()
-                    label = "Biased" if bias_score > 0.5 else "Factual"
-                    
-                    # Get top biased words for overall analysis
-                    top_words = self.get_top_biased_words_gradient(filtered_text, top_k=8)
-                    reasoning = self.get_bias_reasoning(filtered_text, label, bias_score)
-                    
-                    return {
-                        "label": label, 
-                        "score": bias_score,
-                        "reasoning": reasoning,
-                        "top_words": top_words
-                    }
-            except Exception as e:
-                print(f"Local Model Prediction Error: {e}", file=sys.stderr)
-
-        return {"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."}
+        # 3. Aggregate results for an overall score
+        total_score = sum(r["score"] for r in results)
+        avg_score = total_score / len(results)
+        
+        # Determine overall label based on average
+        label = "Biased" if avg_score > 0.5 else "Factual"
+        
+        # Get top biased words for overall analysis (using a combined sample for efficiency)
+        sample_text = " ".join(analysis_batch[:5])
+        top_words = self.get_top_biased_words_gradient(sample_text, top_k=8)
+        
+        reasoning = f"Overall analysis based on {len(results)} sentences. Average bias score: {avg_score:.2f}."
+        
+        return {
+            "label": label, 
+            "score": avg_score,
+            "reasoning": reasoning,
+            "top_words": top_words
+        }
 
 
     def split_into_sentences(self, text):

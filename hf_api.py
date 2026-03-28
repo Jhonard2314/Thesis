@@ -71,23 +71,30 @@ def analyze(request: AnalysisRequest):
             }
 
         elif request.action == "analyze_bias":
-            # 2. Analyze overall bias
-            overall = service.rate_bias(content)
-            
-            # 3. Get Summary (NEW: added to bias analysis)
-            summary = service.summarize_content(content)
-            
-            # 4. Sentence-by-sentence analysis
+            # 1. Split and get sentences (up to 25 for stability)
             sentences = service.split_into_sentences(content)
             analysis_sentences = sentences[:25]
+            
+            if not analysis_sentences:
+                return {"error": "No valid content found to analyze."}
+
+            # 2. Analyze sentences in a single batch
             batch_results = service.rate_bias_batch(analysis_sentences)
             
+            # 3. Get Summary
+            summary = service.summarize_content(content)
+            
+            # 4. Process results and calculate overall metrics
             sentence_results = []
             factual_count = 0
             biased_count = 0
+            total_score = 0
             
             for i, res in enumerate(batch_results):
                 label = res["label"]
+                score = res["score"]
+                total_score += score
+                
                 if label == "Biased":
                     biased_count += 1
                 else:
@@ -96,19 +103,26 @@ def analyze(request: AnalysisRequest):
                 sentence_results.append({
                     "text": analysis_sentences[i],
                     "label": label,
-                    "score": round(res["score"] * 100, 1),
+                    "score": round(score * 100, 1),
                     "reasoning": res.get("reasoning", "")
                 })
 
-            bias_prob = overall["score"]
-            level = "High" if bias_prob > 0.7 else "Medium" if bias_prob > 0.5 else "Low"
+            # Calculate average bias probability
+            avg_bias_prob = total_score / len(batch_results)
+            
+            # Determine overall level
+            level = "High" if avg_bias_prob > 0.7 else "Medium" if avg_bias_prob > 0.5 else "Low"
+            
+            # Get top biased words (using a sample)
+            sample_text = " ".join(analysis_sentences[:5])
+            top_words = service.get_top_biased_words_gradient(sample_text, top_k=8)
             
             return {
                 "bias_level": level,
-                "bias_score": round(bias_prob * 100, 1),
+                "bias_score": round(avg_bias_prob * 100, 1),
                 "summary": summary,
-                "explanation": overall.get("reasoning", "No specific reasoning provided."),
-                "top_words": overall.get("top_words", []),
+                "explanation": f"Analysis completed across {len(analysis_sentences)} sentences. Overall bias score represents the average linguistic bias detected.",
+                "top_words": top_words,
                 "sentence_breakdown": sentence_results,
                 "factual_count": factual_count,
                 "biased_count": biased_count,
