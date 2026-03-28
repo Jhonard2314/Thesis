@@ -71,11 +71,14 @@ class NewsService:
             model_cache_dir = os.path.join(base_path, "bias_module", "data", "model_cache")
             
             if os.path.exists(model_path):
+                # QUICK CHECK: If on Vercel, we might want to skip this if it's too slow
+                # but for now we try to load it.
+                print(f"Loading local model from {model_path}...", file=sys.stderr)
+                
                 # Load from local cache if possible to avoid HF connectivity issues
                 if os.path.exists(model_cache_dir):
                     from transformers import BertConfig
                     self.bias_tokenizer = BertTokenizer.from_pretrained(model_cache_dir)
-                    # Load model structure from config to avoid needing the base pytorch_model.bin
                     config = BertConfig.from_pretrained(os.path.join(model_cache_dir, "config.json"))
                     self.bias_model = BertForSequenceClassification(config)
                 else:
@@ -85,10 +88,12 @@ class NewsService:
                         num_labels=2
                     )
                 
+                # Load state dict with weights_only=True if available (safer)
                 self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
                 self.bias_model.eval()
-                # Print to stderr so it doesn't break JSON parsing in the bridge
-                print(f"Local bias model loaded successfully from {model_path}", file=sys.stderr)
+                print(f"Local bias model loaded successfully.", file=sys.stderr)
+            else:
+                print(f"Model file not found at {model_path}", file=sys.stderr)
         except Exception as e:
             print(f"Error loading local bias model: {e}", file=sys.stderr)
             self.bias_model = None

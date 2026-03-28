@@ -32,6 +32,7 @@ def main():
         parser.add_argument('--query', help='Search query for news')
         parser.add_argument('--category', help='News category')
         parser.add_argument('--url', help='Article URL for analysis')
+        parser.add_argument('--content', help='Direct article content')
         
         args = parser.parse_args()
         service = NewsService()
@@ -52,12 +53,12 @@ def main():
             print_json({"articles": transformed})
 
         elif args.action == 'get_summary':
-            if not args.url:
-                print_json({"error": "URL required"})
+            if not args.url and not args.content:
+                print_json({"error": "URL or content required"})
                 return
 
             # 1. Get content
-            content = service.get_full_content(args.url)
+            content = args.content or service.get_full_content(args.url)
             if not content:
                 print_json({"error": "Could not retrieve content for this article."})
                 return
@@ -71,12 +72,12 @@ def main():
             })
 
         elif args.action == 'analyze_bias':
-            if not args.url:
-                print_json({"error": "URL required"})
+            if not args.url and not args.content:
+                print_json({"error": "URL or content required"})
                 return
 
             # 1. Get content
-            content = service.get_full_content(args.url)
+            content = args.content or service.get_full_content(args.url)
             if not content:
                 print_json({"error": "Could not retrieve content for this article."})
                 return

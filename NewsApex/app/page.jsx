@@ -124,6 +124,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           url: selectedArticle.url,
+          content: biasData?.full_content, // 🔹 Pass already extracted content to save time
           action: 'analyze_bias'
         }),
       });

@@ -45,32 +45,37 @@ export async function POST(request) {
     const body = await request.json();
     const articleUrl = body.url || body.articleUrl;
     const action = body.action || 'analyze_bias';
+    const existingContent = body.content || body.full_content; // 🔹 Support passing text directly
 
-    if (!articleUrl) {
-      return NextResponse.json({ error: 'Article URL is required' }, { status: 400 });
+    if (!articleUrl && !existingContent) {
+      return NextResponse.json({ error: 'Article URL or content is required' }, { status: 400 });
     }
 
-    // 🔹 Try Python Bridge first (Preferred for Local Model)
+    // 🔹 Try Python Bridge first
     const resultData = await new Promise(async (resolve, reject) => {
       const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-      const pythonProcess = spawn(pythonCommand, [scriptPath, action, '--url', articleUrl]);
+      
+      const args = [scriptPath, action];
+      if (articleUrl) {
+        args.push('--url', articleUrl);
+      }
+      if (existingContent) {
+        args.push('--content', existingContent); // 🔹 Pass content if we already have it
+      }
+
+      const pythonProcess = spawn(pythonCommand, args);
 
       let output = '';
       let error = '';
 
-      // Strict 8-second timeout for Vercel
+      // Increased to 14 seconds for analysis
       const timeout = setTimeout(async () => {
         pythonProcess.kill();
-        console.log("Python bridge timed out, attempting cloud fallback...");
-        
-        // 🔹 If Python times out, we don't just fail - we try to get a quick cloud response
-        // Note: We need some text for cloud analysis. Since we don't have it yet, 
-        // this is a last-resort. In a production app, we'd scrape the text in Node.js first.
         resolve({ 
-          error: 'Analysis timed out. The local BERT model is too heavy for the server. Try again in a few seconds or use a shorter article.'
+          error: 'Analysis timed out. The server is under heavy load. Please try a shorter article or wait a moment.'
         });
-      }, 8000);
+      }, 14000);
 
       pythonProcess.stdout.on('data', (data) => { output += data.toString(); });
       pythonProcess.stderr.on('data', (data) => { error += data.toString(); });
@@ -87,6 +92,7 @@ export async function POST(request) {
           try {
             resolve(JSON.parse(output));
           } catch (e) {
+            console.error(`Failed to parse output: ${output}`);
             reject(new Error('Failed to parse model output'));
           }
         }
