@@ -29,11 +29,24 @@ export async function GET(request) {
         const data = await response.json();
         return NextResponse.json(data);
       } else {
-        console.error(`HF Space error: ${response.status}`);
+        const errorText = await response.text();
+        return NextResponse.json({ 
+          error: `Hugging Face Space returned error ${response.status}`,
+          details: errorText.substring(0, 100)
+        }, { status: response.status });
       }
     } catch (error) {
       console.error('Failed to reach HF Space:', error);
+      return NextResponse.json({ 
+        error: 'Could not connect to Hugging Face backend',
+        details: error.message 
+      }, { status: 503 });
     }
+  }
+
+  // 🔹 Local Fallback (Only for Localhost)
+  if (IS_PRODUCTION) {
+    return NextResponse.json({ error: 'Backend URL (HF_SPACE_URL) is missing or unreachable in production.' }, { status: 500 });
   }
 
   try {

@@ -35,18 +35,30 @@ export async function POST(request) {
           const data = await response.json();
           return NextResponse.json(data);
         } else {
-          console.error(`HF Space error: ${response.status}`);
+          const errorText = await response.text();
+          return NextResponse.json({ 
+            error: `Hugging Face Space returned error ${response.status}`,
+            details: errorText.substring(0, 100)
+          }, { status: response.status });
         }
       } catch (error) {
         console.error('Failed to reach HF Space:', error);
+        return NextResponse.json({ 
+          error: 'Could not connect to Hugging Face backend',
+          details: error.message 
+        }, { status: 503 });
       }
     }
 
-    // 🔹 Restore Python Bridge as the Primary Logic (Fixes Local Host)
+    // 🔹 Local Fallback (Only for Localhost)
+    if (IS_PRODUCTION) {
+      return NextResponse.json({ error: 'Backend URL (HF_SPACE_URL) is missing or unreachable in production.' }, { status: 500 });
+    }
+
     const resultData = await new Promise((resolve, reject) => {
       const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-      
+
       const args = [scriptPath, action];
       if (articleUrl) args.push('--url', articleUrl);
       if (existingContent) args.push('--content', existingContent);
@@ -58,12 +70,12 @@ export async function POST(request) {
       // 🔹 Environment-Aware Timeout
       // On Vercel, we must finish in 10s. On Local, we can wait much longer for BERT.
       const timeoutLimit = IS_PRODUCTION ? 9000 : 120000; // 9s for Vercel, 2 mins for Local
-      
+
       const timeout = setTimeout(() => {
         pythonProcess.kill();
-        resolve({ 
-          error: IS_PRODUCTION 
-            ? 'Analysis timed out on the server. The local BERT model is too heavy for Vercel.' 
+        resolve({
+          error: IS_PRODUCTION
+            ? 'Analysis timed out on the server. The local BERT model is too heavy for Vercel.'
             : 'Local analysis timed out. Check if your Python environment is responsive.'
         });
       }, timeoutLimit);
