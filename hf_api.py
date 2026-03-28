@@ -22,6 +22,11 @@ except ImportError:
 app = FastAPI(title="NewsApex AI Backend")
 service = NewsService()
 
+# Pre-load the model at startup to avoid delay on first request
+print("Pre-loading bias model...", file=sys.stderr)
+service.load_local_bias_model()
+print("Bias model ready.", file=sys.stderr)
+
 class AnalysisRequest(BaseModel):
     url: Optional[str] = None
     content: Optional[str] = None

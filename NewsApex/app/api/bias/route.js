@@ -22,7 +22,7 @@ export async function POST(request) {
     if (IS_PRODUCTION && HF_SPACE_URL) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9000); // 9 second timeout for bias analysis
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for bias analysis
 
         const response = await fetch(`${HF_SPACE_URL}/analyze`, {
           method: 'POST',

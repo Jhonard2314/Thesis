@@ -21,7 +21,7 @@ export async function GET(request) {
 
       // Create a timeout controller to prevent hanging if HF is restarting
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout for news fetch
 
       const response = await fetch(url.toString(), {
         method: 'GET',
