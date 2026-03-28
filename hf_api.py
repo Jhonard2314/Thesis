@@ -98,8 +98,11 @@ def analyze(request: AnalysisRequest):
                     "details": batch_results[0].get("reasoning", "Unknown error")
                 }
             
-            # 3. Get Summary
+            # 3. Get Summary - Use a more specific generation logic
             summary = service.summarize_content(content)
+            if not summary:
+                # Fallback to truncated first paragraph if BART fails
+                summary = content.split('\n')[0][:300] + "..."
             
             # 4. Process results and calculate overall metrics
             sentence_results = []
@@ -128,10 +131,11 @@ def analyze(request: AnalysisRequest):
             avg_bias_prob = total_score / len(batch_results)
             
             # Determine overall level
-            level = "High" if avg_bias_prob > 0.7 else "Medium" if avg_bias_prob > 0.5 else "Low"
+            # 🔹 ADJUSTED THRESHOLD: Lowered 'High' to 0.65 for more realistic detection
+            level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.45 else "Low"
             
             # Get top biased words (using a sample)
-            sample_text = " ".join(analysis_sentences[:5])
+            sample_text = " ".join(analysis_sentences[:8])
             top_words = service.get_top_biased_words_gradient(sample_text, top_k=8)
             
             return {
