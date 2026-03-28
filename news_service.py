@@ -2,8 +2,6 @@ import requests
 import os
 import re
 from dotenv import load_dotenv
-from newspaper import Article, Config
-from huggingface_hub import InferenceClient
 from concurrent.futures import ThreadPoolExecutor
 import sys
 
@@ -32,30 +30,36 @@ class NewsService:
         self.hf_token = os.getenv("HF_TOKEN")
         
         self.session = requests.Session()
-        self.config = Config()
-        self.config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-        self.config.request_timeout = 20
-        self.config.fetch_images = False
-        self.config.memoize_articles = False
-        self.config.MAX_TEXT = 100000 # Ensure we get as much text as possible
         
-        # Initialize HF Client for summarization and fallback bias detection
-        if self.hf_token:
+        # Initialize Config locally to avoid importing heavy libraries at top-level
+        self._config = None
+        
+        # Initialize HF Client lazily
+        self.hf_client = None
+
+    @property
+    def config(self):
+        if self._config is None:
+            from newspaper import Config
+            self._config = Config()
+            self._config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+            self._config.request_timeout = 20
+            self._config.fetch_images = False
+            self._config.memoize_articles = False
+            self._config.MAX_TEXT = 100000 
+        return self._config
+
+    def _get_hf_client(self):
+        if self.hf_client is None and self.hf_token:
             try:
+                from huggingface_hub import InferenceClient
                 self.hf_client = InferenceClient(token=self.hf_token)
             except:
                 self.hf_client = None
-        else:
-            self.hf_client = None
-
-        # --- BIAS MODULE INTEGRATION ---
-        self.bias_model = None
-        self.bias_tokenizer = None
-        # Model will be loaded on first use of rate_bias
+        return self.hf_client
 
     def load_local_bias_model(self):
         """Attempts to load the local BERT model for bias detection."""
-        global torch, BertTokenizer, BertForSequenceClassification
         try:
             import torch
             from transformers import BertTokenizer, BertForSequenceClassification
@@ -98,6 +102,7 @@ class NewsService:
             return []
 
         try:
+            import torch
             encoding = self.bias_tokenizer(
                 text,
                 return_tensors="pt",
@@ -117,7 +122,6 @@ class NewsService:
                 param.requires_grad = True
 
             # Use torch.enable_grad() since we might be inside a torch.no_grad() block
-            import torch
             with torch.enable_grad():
                 outputs = self.bias_model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = outputs.logits
@@ -225,6 +229,7 @@ class NewsService:
 
         if self.bias_model and self.bias_tokenizer:
             try:
+                import torch
                 inputs = self.bias_tokenizer(filtered_text, return_tensors="pt", truncation=True, padding=True, max_length=128)
                 with torch.no_grad():
                     outputs = self.bias_model(**inputs)
@@ -365,39 +370,9 @@ class NewsService:
         except:
             pass
 
-        # --- SCRAPABILITY FILTER ---
-        # We only want to show articles that we can actually scrape content from.
-        # Since scraping is slow, we use a thread pool and limit the number of articles we check.
-        filtered_articles = []
-        # Limit to top 12 most recent/relevant articles (a balanced number for Vercel/Local)
-        articles_to_check = unique_articles[:12]
-        
-        def check_article(article):
-            url = article.get("link")
-            if not url:
-                return None
-            
-            # Simple check: can we get content?
-            # Use a slightly longer timeout for local, but capped for production
-            content = self.get_full_content(url, timeout=7)
-            if content:
-                # Store content temporarily to avoid re-scraping if needed, 
-                # but for now we just return the article if it's scrapable
-                return article
-            return None
-
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            results = list(executor.map(check_article, articles_to_check))
-            filtered_articles = [r for r in results if r is not None]
-
-        # Ensure we have at least some articles, but don't spend too much time
-        if len(filtered_articles) < 6 and len(unique_articles) > 12:
-            extra_to_check = unique_articles[12:18]
-            with ThreadPoolExecutor(max_workers=6) as executor:
-                extra_results = list(executor.map(check_article, extra_to_check))
-                filtered_articles.extend([r for r in extra_results if r is not None])
-
-        return filtered_articles
+        # NOTE: Scrapability filter disabled to prevent timeouts on Vercel
+        # We now prioritize speed for the initial news load.
+        return unique_articles[:20]
 
     def get_full_content(self, url, timeout=None):
         try:
@@ -422,6 +397,7 @@ class NewsService:
             if any(term in html_lower for term in quick_fail_terms):
                 return None
 
+            from newspaper import Article
             article = Article(url, config=self.config)
             article.set_html(response.text)
             article.parse()
@@ -449,12 +425,13 @@ class NewsService:
             return None
 
     def summarize_content(self, text):
-        if not self.hf_client or not text or len(text.strip()) < 100:
+        hf_client = self._get_hf_client()
+        if not hf_client or not text or len(text.strip()) < 100:
             return None
         try:
             truncated_text = text[:2000] # Reduced from 3500 to 2000
             # Use a faster, smaller summarization model
-            response = self.hf_client.summarization(
+            response = hf_client.summarization(
                 truncated_text,
                 model="facebook/bart-large-cnn" 
             )
