@@ -62,7 +62,8 @@ class NewsService:
             from transformers import BertTokenizer, BertForSequenceClassification, BertConfig
             from bias_module import config as bias_config
             base_path = os.path.dirname(os.path.abspath(__file__))
-            # Try multiple possible locations for the model
+            
+            # Potential model locations
             possible_paths = [
                 os.path.join(base_path, "bias_module", "models", "bert_babe.pt"),
                 os.path.join(base_path, "bert_babe.pt"),
@@ -70,9 +71,14 @@ class NewsService:
                 "/app/bert_babe.pt"
             ]
             
+            print(f"DEBUG: base_path={base_path}", file=sys.stderr)
+            print(f"DEBUG: cwd={os.getcwd()}", file=sys.stderr)
+            
             model_path = None
             for p in possible_paths:
-                if os.path.exists(p):
+                exists = os.path.exists(p)
+                print(f"DEBUG: Checking path {p} - exists={exists}", file=sys.stderr)
+                if exists:
                     model_path = p
                     break
             
@@ -81,7 +87,6 @@ class NewsService:
             if model_path:
                 print(f"Loading model from: {model_path}", file=sys.stderr)
                 if os.path.exists(model_cache_dir):
-                    from transformers import BertConfig
                     self.bias_tokenizer = BertTokenizer.from_pretrained(model_cache_dir)
                     config = BertConfig.from_pretrained(os.path.join(model_cache_dir, "config.json"))
                     self.bias_model = BertForSequenceClassification(config)
@@ -95,8 +100,12 @@ class NewsService:
                 self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
                 self.bias_model.eval()
                 print(f"Local bias model loaded successfully.", file=sys.stderr)
+            else:
+                print(f"Model file 'bert_babe.pt' not found in any expected location.", file=sys.stderr)
         except Exception as e:
             print(f"Error loading local bias model: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
 
     def get_top_biased_words_gradient(self, text, top_k=5):
         if not self.bias_model or not self.bias_tokenizer:

@@ -65,12 +65,18 @@ class NewsService:
             possible_paths = [
                 os.path.join(base_path, "bias_module", "models", "bert_babe.pt"), # Local structure
                 os.path.join(base_path, "bert_babe.pt"),                         # HF Flat structure
-                os.path.join(os.getcwd(), "bert_babe.pt")                        # Current Dir
+                os.path.join(os.getcwd(), "bert_babe.pt"),                        # Current Dir
+                "/app/bert_babe.pt"
             ]
+            
+            print(f"DEBUG: base_path={base_path}", file=sys.stderr)
+            print(f"DEBUG: cwd={os.getcwd()}", file=sys.stderr)
             
             model_path = None
             for p in possible_paths:
-                if os.path.exists(p):
+                exists = os.path.exists(p)
+                print(f"DEBUG: Checking path {p} - exists={exists}", file=sys.stderr)
+                if exists:
                     model_path = p
                     break
             
@@ -96,6 +102,8 @@ class NewsService:
                 print(f"Model file 'bert_babe.pt' not found in any expected location.", file=sys.stderr)
         except Exception as e:
             print(f"Error loading local bias model: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             self.bias_model = None
             self.bias_tokenizer = None
 
