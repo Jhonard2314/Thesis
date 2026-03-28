@@ -4,7 +4,7 @@ import path from 'path';
 
 export const maxDuration = 60; // Set max duration to 60 seconds
 
-const HF_SPACE_URL = process.env.HF_SPACE_URL;
+const HF_SPACE_URL = process.env.HF_SPACE_URL || "https://breadknife-news-apex-api.hf.space";
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
 export async function GET(request) {
@@ -19,11 +19,18 @@ export async function GET(request) {
       if (query) url.searchParams.append('query', query);
       if (category) url.searchParams.append('category', category);
 
+      // Create a timeout controller to prevent hanging if HF is restarting
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        next: { revalidate: 300 } // Cache for 5 minutes
+        next: { revalidate: 300 }, // Cache for 5 minutes
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -31,15 +38,16 @@ export async function GET(request) {
       } else {
         const errorText = await response.text();
         return NextResponse.json({ 
-          error: `Hugging Face Space returned error ${response.status}`,
-          details: errorText.substring(0, 100)
+          error: `Hugging Face Space is currently ${response.status === 503 ? 'starting up' : 'unavailable'}`,
+          details: `Status: ${response.status}`
         }, { status: response.status });
       }
     } catch (error) {
       console.error('Failed to reach HF Space:', error);
+      const isTimeout = error.name === 'AbortError';
       return NextResponse.json({ 
-        error: 'Could not connect to Hugging Face backend',
-        details: error.message 
+        error: isTimeout ? 'Hugging Face Space is taking too long to respond' : 'Could not connect to Hugging Face backend',
+        details: isTimeout ? 'The backend is likely waking up from sleep mode.' : error.message 
       }, { status: 503 });
     }
   }

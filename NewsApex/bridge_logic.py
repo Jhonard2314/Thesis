@@ -87,11 +87,12 @@ def main():
             # 2. Analyze overall bias
             overall = service.rate_bias(content)
             
-            # 3. Sentence-by-sentence analysis (Analyze a subset of the article for highlighting)
-            sentences = service.split_into_sentences(content)
-            # Limit to the first 25 sentences to avoid timeout, while still giving a good breakdown
-            analysis_sentences = sentences[:25]
+            # 3. Get Summary (NEW: added to bias analysis for local consistency)
+            summary = service.summarize_content(content[:3000])
             
+            # 4. Sentence-by-sentence analysis
+            sentences = service.split_into_sentences(content)
+            analysis_sentences = sentences[:25]
             batch_results = service.rate_bias_batch(analysis_sentences)
             
             sentence_results = []
@@ -105,31 +106,20 @@ def main():
                 else:
                     factual_count += 1
 
-                # Always show the raw bias score from the model
-                display_score = res["score"]
-
                 sentence_results.append({
                     "text": analysis_sentences[i],
                     "label": label,
-                    "score": round(display_score * 100, 1),
+                    "score": round(res["score"] * 100, 1),
                     "reasoning": res.get("reasoning", "")
                 })
 
-            # Determine overall level
             bias_prob = overall["score"]
-            if bias_prob > 0.7:
-                level = "High"
-            elif bias_prob > 0.5:
-                level = "Medium"
-            else:
-                level = "Low"
-            
-            # Show the raw bias score from the model
-            overall_display_score = bias_prob
+            level = "High" if bias_prob > 0.7 else "Medium" if bias_prob > 0.5 else "Low"
             
             print_json({
                 "bias_level": level,
-                "bias_score": round(overall_display_score * 100, 1),
+                "bias_score": round(bias_prob * 100, 1),
+                "summary": summary,
                 "explanation": overall.get("reasoning", "No specific reasoning provided."),
                 "top_words": overall.get("top_words", []),
                 "sentence_breakdown": sentence_results,

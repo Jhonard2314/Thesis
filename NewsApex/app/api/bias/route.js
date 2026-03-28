@@ -4,7 +4,7 @@ import path from 'path';
 
 export const maxDuration = 60; // Set max duration to 60 seconds
 
-const HF_SPACE_URL = process.env.HF_SPACE_URL;
+const HF_SPACE_URL = process.env.HF_SPACE_URL || "https://breadknife-news-apex-api.hf.space";
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
 export async function POST(request) {
@@ -21,6 +21,9 @@ export async function POST(request) {
     // 🔹 In Production (Vercel), use the Hugging Face API to avoid 10s timeouts
     if (IS_PRODUCTION && HF_SPACE_URL) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000); // 9 second timeout for bias analysis
+
         const response = await fetch(`${HF_SPACE_URL}/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -28,8 +31,11 @@ export async function POST(request) {
             url: articleUrl,
             content: existingContent,
             action: action
-          })
+          }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
@@ -43,9 +49,10 @@ export async function POST(request) {
         }
       } catch (error) {
         console.error('Failed to reach HF Space:', error);
+        const isTimeout = error.name === 'AbortError';
         return NextResponse.json({ 
-          error: 'Could not connect to Hugging Face backend',
-          details: error.message 
+          error: isTimeout ? 'Hugging Face Space is taking too long to respond' : 'Could not connect to Hugging Face backend',
+          details: isTimeout ? 'The backend is likely waking up from sleep mode.' : error.message 
         }, { status: 503 });
       }
     }
