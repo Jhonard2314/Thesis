@@ -23,10 +23,17 @@ except ImportError:
 app = FastAPI(title="NewsApex AI Backend")
 service = NewsService()
 
-# Pre-load the model at startup to avoid delay on first request
-print("Pre-loading bias model...", file=sys.stderr)
-service.load_local_bias_model()
-print("Bias model ready.", file=sys.stderr)
+@app.on_event("startup")
+async def startup_event():
+    """Load the model in the background so the server starts immediately and passes the health check."""
+    import threading
+    def load_model():
+        print("Startup Task: Pre-loading bias model...", file=sys.stderr)
+        service.load_local_bias_model()
+        print("Startup Task: Bias model ready.", file=sys.stderr)
+    
+    # Run loading in a background thread to prevent blocking the FastAPI startup loop
+    threading.Thread(target=load_model, daemon=True).start()
 
 class AnalysisRequest(BaseModel):
     url: Optional[str] = None
@@ -35,7 +42,19 @@ class AnalysisRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "model": "BERT-BABE Bias Detector"}
+    """Simple health check endpoint for Hugging Face and Vercel monitoring."""
+    model_status = "Loaded" if service.bias_model else "Loading (Background)"
+    return {
+        "status": "online",
+        "service": "NewsApex AI Backend",
+        "model_status": model_status,
+        "api_version": "1.1.0"
+    }
+
+@app.get("/health")
+def health_check():
+    """Dedicated health check for deployment monitors."""
+    return {"status": "ok", "model_ready": service.bias_model is not None}
 
 @app.get("/fetch_news")
 def fetch_news(query: Optional[str] = None, category: Optional[str] = None):
