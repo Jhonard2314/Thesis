@@ -25,8 +25,11 @@ export async function GET(request) {
 
       const response = await fetch(url.toString(), {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        next: { revalidate: 300 }, // Cache for 5 minutes
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        next: { revalidate: 30 }, // Cache for 30 seconds (reduced from 5 mins for faster updates)
         signal: controller.signal
       });
 
@@ -34,7 +37,12 @@ export async function GET(request) {
 
       if (response.ok) {
         const data = await response.json();
-        return NextResponse.json(data);
+        const res = NextResponse.json(data);
+        // Prevent Vercel Edge caching to ensure fresh data always
+        res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.headers.set('Pragma', 'no-cache');
+        res.headers.set('Expires', '0');
+        return res;
       } else {
         const errorText = await response.text();
         return NextResponse.json({ 
