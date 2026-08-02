@@ -34,7 +34,7 @@ class NewsService:
 
     def __init__(self):
         self.newsdata_api_key = os.getenv("NEWSDATA_API_KEY", "pub_c319de1ec46240dc912d9b112e01c866")
-        self.guardian_api_key = os.getenv("GUARDIAN_API_KEY", "438ab5df-f19b-42b6-9ca9-83b8e971f219")
+        self.guardian_api_key = os.getenv("GUARDIAN_API_KEY", "22a8f287-72ca-4501-b9b8-bdf3884753d5")
         self.hf_token = os.getenv("HF_TOKEN")
         
         self.session = requests.Session()
@@ -219,18 +219,30 @@ class NewsService:
         except: return []
 
     def fetch_guardian(self, query=None, category=None):
-        if not self.guardian_api_key or "your_" in self.guardian_api_key: return []
+        if not self.guardian_api_key or "your_" in self.guardian_api_key: 
+            print("Guardian: API key missing or placeholder, skipping.", file=sys.stderr)
+            return []
         url = "https://content.guardianapis.com/search"
-        params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText"}
+        params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText", "page-size": 20}
         if query: params["q"] = query
         category_map = {'business': 'business', 'technology': 'technology', 'entertainment': 'culture', 'health': 'society', 'science': 'science', 'sports': 'sport'}
         if category and category in category_map: params["section"] = category_map[category]
         try:
-            res = self.session.get(url, params=params, timeout=10)
+            res = self.session.get(url, params=params, timeout=15)
+            if res.status_code != 200:
+                print(f"Guardian API ERROR: Status {res.status_code}. Response: {res.text[:300]}", file=sys.stderr)
+                return []
             data = res.json()
-            results = data.get("response", {}).get("results", [])
+            resp = data.get("response", {})
+            if resp.get("status") != "ok":
+                print(f"Guardian API Status Error: {resp.get('status')} - {resp.get('message', 'No message')}", file=sys.stderr)
+                return []
+            results = resp.get("results", [])
+            print(f"Guardian API: Retrieved {len(results)} articles.", file=sys.stderr)
             return [{"title": r.get("webTitle"), "link": r.get("webUrl"), "source_id": "The Guardian", "pubDate": r.get("webPublicationDate"), "image_url": r.get("fields", {}).get("thumbnail"), "snippet": r.get("fields", {}).get("trailText")} for r in results]
-        except: return []
+        except Exception as e:
+            print(f"Guardian Exception: {str(e)}", file=sys.stderr)
+            return []
 
     def fetch_all_news(self, query=None, category=None, language="en"):
         # FASTEST POSSIBLE FETCH: Parallelize the two API calls
