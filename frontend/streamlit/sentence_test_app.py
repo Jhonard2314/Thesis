@@ -3,11 +3,18 @@ import re
 import sys
 import os
 
-# Add project directories to path for reorganized layout
 _current_dir = os.path.dirname(os.path.abspath(__file__))
-_project_root = os.path.dirname(_current_dir)
+_frontend_dir = os.path.dirname(_current_dir)
+_project_root = os.path.dirname(_frontend_dir)
 _backend_dir = os.path.join(_project_root, "backend")
-for _p in [_current_dir, _project_root, _backend_dir, os.path.join(_backend_dir, "core")]:
+for _p in [
+    _current_dir,
+    _frontend_dir,
+    _project_root,
+    _backend_dir,
+    os.path.join(_backend_dir, "core"),
+    os.path.join(_backend_dir, "bias_module"),
+]:
     if _p not in sys.path:
         sys.path.append(_p)
 

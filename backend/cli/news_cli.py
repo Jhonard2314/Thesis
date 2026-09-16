@@ -1,11 +1,10 @@
 import sys
 import os
 
-# Add project directories to path for reorganized layout
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 _backend_dir = os.path.dirname(_current_dir)
 _project_root = os.path.dirname(_backend_dir)
-for _p in [_current_dir, _backend_dir, _project_root]:
+for _p in [_current_dir, _backend_dir, _project_root, os.path.join(_backend_dir, "bias_module")]:
     if _p not in sys.path:
         sys.path.append(_p)
 

@@ -6,15 +6,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-# Add directories to path for reorganized structure
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(backend_dir)
-for p in [current_dir, backend_dir, project_root]:
+for p in [current_dir, backend_dir, project_root, os.path.join(backend_dir, "bias_module")]:
     if p not in sys.path:
         sys.path.append(p)
 
-# Lazy import NewsService for reorganized layout (with legacy fallbacks)
 try:
     from core.news_service import NewsService
 except ImportError:
@@ -24,13 +22,7 @@ except ImportError:
         try:
             from news_service import NewsService
         except ImportError:
-            try:
-                from NewsApex.news_service import NewsService
-            except ImportError:
-                try:
-                    from NewsApex.python.news_service import NewsService
-                except ImportError:
-                    raise ImportError("Could not find news_service.py in any expected location")
+            raise ImportError("Could not find news_service.py in any expected location")
 
 app = FastAPI(title="NewsApex AI Backend")
 service = NewsService()

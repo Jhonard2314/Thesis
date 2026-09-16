@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-export const maxDuration = 60; // Set max duration to 60 seconds
+export const maxDuration = 60;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const FRONTEND_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
+const PYTHON_SCRIPT = path.join(FRONTEND_ROOT, 'python', 'bridge_logic.py');
 
 const HF_SPACE_URL = process.env.HF_SPACE_URL || "https://breadknife-news-apex-api.hf.space";
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
@@ -63,7 +69,7 @@ export async function POST(request) {
     }
 
     const resultData = await new Promise((resolve, reject) => {
-      const scriptPath = path.join(process.cwd(), 'python', 'bridge_logic.py');
+      const scriptPath = PYTHON_SCRIPT;
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
 
       const args = [scriptPath, action];

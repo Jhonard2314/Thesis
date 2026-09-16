@@ -9,7 +9,6 @@ import sys
 import torch
 from transformers import BertTokenizer, BertForSequenceClassification
 
-# Add bias_module to path for integration
 base_path = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(base_path)
 project_root = os.path.dirname(backend_dir)
@@ -19,7 +18,7 @@ if backend_dir not in sys.path:
     sys.path.append(backend_dir)
 if project_root not in sys.path:
     sys.path.append(project_root)
-sys.path.append(os.path.join(project_root, "bias_module"))
+sys.path.append(os.path.join(backend_dir, "bias_module"))
 
 load_dotenv(os.path.join(project_root, ".env"))
 load_dotenv()
@@ -69,16 +68,16 @@ class NewsService:
             # Handle both structured (local) and flat (HF Space) layouts
             base_path = os.path.dirname(os.path.abspath(__file__))
             
-            # Potential model locations
             backend_dir_local = os.path.dirname(base_path)
             project_root_local = os.path.dirname(backend_dir_local)
             possible_paths = [
-                os.path.join(backend_dir_local, "models", "bert_babe.pt"),        # Reorganized: backend/models/
-                os.path.join(backend_dir_local, "models", "bert_babe_root.pt"),   # Reorganized: backup copy
-                os.path.join(project_root_local, "bert_babe.pt"),                  # Legacy root
-                os.path.join(base_path, "bias_module", "models", "bert_babe.pt"),  # Local structure
-                os.path.join(base_path, "bert_babe.pt"),                          # HF Flat structure
-                os.path.join(os.getcwd(), "bert_babe.pt"),                        # Current Dir
+                os.path.join(backend_dir_local, "models", "bert_babe.pt"),
+                os.path.join(backend_dir_local, "bias_module", "models", "bert_babe.pt"),
+                os.path.join(project_root_local, "backend", "models", "bert_babe.pt"),
+                os.path.join(os.getcwd(), "backend", "models", "bert_babe.pt"),
+                os.path.join(os.getcwd(), "bert_babe.pt"),
+                os.path.join(base_path, "bert_babe.pt"),
+                "/app/backend/models/bert_babe.pt",
                 "/app/bert_babe.pt"
             ]
             
@@ -111,14 +110,17 @@ class NewsService:
                 self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
                 self.bias_model.eval()
                 print(f"Local bias model loaded successfully from {model_path}", file=sys.stderr)
+                return True
             else:
                 print(f"Model file 'bert_babe.pt' not found in any expected location.", file=sys.stderr)
+                return False
         except Exception as e:
             print(f"Error loading local bias model: {e}", file=sys.stderr)
             import traceback
             traceback.print_exc(file=sys.stderr)
             self.bias_model = None
             self.bias_tokenizer = None
+            return False
 
     def get_top_biased_words_gradient(self, text, top_k=5):
         """
