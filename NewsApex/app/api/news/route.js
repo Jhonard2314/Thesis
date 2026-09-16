@@ -75,7 +75,7 @@ export async function GET(request) {
         args.push('--category', category);
       }
 
-      const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
+      const scriptPath = path.join(process.cwd(), 'python', 'bridge_logic.py');
       // Use python3 for Linux/Vercel environment
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
       const pythonProcess = spawn(pythonCommand, [scriptPath, ...args.slice(1)], {});

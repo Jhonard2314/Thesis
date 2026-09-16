@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements.txt first to leverage Docker cache
-COPY hf_requirements.txt .
+COPY backend/hf_requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r hf_requirements.txt
 
@@ -32,4 +32,4 @@ COPY . .
 EXPOSE 7860
 
 # Command to run the application
-CMD ["uvicorn", "hf_api:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "backend.api.fastapi_server:app", "--host", "0.0.0.0", "--port", "7860"]

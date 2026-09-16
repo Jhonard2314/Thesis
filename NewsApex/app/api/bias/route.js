@@ -63,7 +63,7 @@ export async function POST(request) {
     }
 
     const resultData = await new Promise((resolve, reject) => {
-      const scriptPath = path.join(process.cwd(), 'bridge_logic.py');
+      const scriptPath = path.join(process.cwd(), 'python', 'bridge_logic.py');
       const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
 
       const args = [scriptPath, action];
