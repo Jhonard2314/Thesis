@@ -1,0 +1,127 @@
+import { NextResponse } from 'next/server';
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+export const maxDuration = 60;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const FRONTEND_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
+const PYTHON_SCRIPT = path.join(FRONTEND_ROOT, 'python', 'bridge_logic.py');
+
+const HF_SPACE_URL = process.env.HF_SPACE_URL || "https://breadknife-news-apex-api.hf.space";
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const articleUrl = body.url || body.articleUrl;
+    const action = body.action || 'analyze_bias';
+    const existingContent = body.content || body.full_content;
+
+    if (!articleUrl && !existingContent) {
+      return NextResponse.json({ error: 'Article URL or content is required' }, { status: 400 });
+    }
+
+    // 🔹 In Production (Vercel), use the Hugging Face API to avoid 10s timeouts
+    if (IS_PRODUCTION && HF_SPACE_URL) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for bias analysis
+
+        const response = await fetch(`${HF_SPACE_URL}/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: articleUrl,
+            content: existingContent,
+            action: action
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          return NextResponse.json(data);
+        } else {
+          const errorText = await response.text();
+          return NextResponse.json({ 
+            error: `Hugging Face Space returned error ${response.status}`,
+            details: errorText.substring(0, 100)
+          }, { status: response.status });
+        }
+      } catch (error) {
+        console.error('Failed to reach HF Space:', error);
+        const isTimeout = error.name === 'AbortError';
+        return NextResponse.json({ 
+          error: isTimeout ? 'Hugging Face Space is taking too long to respond' : 'Could not connect to Hugging Face backend',
+          details: isTimeout ? 'The backend is likely waking up from sleep mode.' : error.message 
+        }, { status: 503 });
+      }
+    }
+
+    // 🔹 Local Fallback (Only for Localhost)
+    if (IS_PRODUCTION) {
+      return NextResponse.json({ error: 'Backend URL (HF_SPACE_URL) is missing or unreachable in production.' }, { status: 500 });
+    }
+
+    const resultData = await new Promise((resolve, reject) => {
+      const scriptPath = PYTHON_SCRIPT;
+      const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+
+      const args = [scriptPath, action];
+      if (articleUrl) args.push('--url', articleUrl);
+      if (existingContent) args.push('--content', existingContent);
+
+      const pythonProcess = spawn(pythonCommand, args);
+      let output = '';
+      let error = '';
+
+      // 🔹 Environment-Aware Timeout
+      // On Vercel, we must finish in 10s. On Local, we can wait much longer for BERT.
+      const timeoutLimit = IS_PRODUCTION ? 9000 : 120000; // 9s for Vercel, 2 mins for Local
+
+      const timeout = setTimeout(() => {
+        pythonProcess.kill();
+        resolve({
+          error: IS_PRODUCTION
+            ? 'Analysis timed out on the server. The local BERT model is too heavy for Vercel.'
+            : 'Local analysis timed out. Check if your Python environment is responsive.'
+        });
+      }, timeoutLimit);
+
+      pythonProcess.stdout.on('data', (data) => { output += data.toString(); });
+      pythonProcess.stderr.on('data', (data) => { error += data.toString(); });
+
+      pythonProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code !== 0) {
+          try {
+            const errData = JSON.parse(error);
+            resolve(errData);
+          } catch (e) {
+            resolve({ error: `Python Error (Code ${code}): ${error || 'Unknown error'}` });
+          }
+        } else {
+          try {
+            resolve(JSON.parse(output));
+          } catch (e) {
+            console.error(`Failed to parse bias output. Raw output: ${output}`);
+            reject(new Error(`Backend error: ${output.substring(0, 100)}...`));
+          }
+        }
+      });
+    });
+
+    return NextResponse.json(resultData);
+  } catch (error) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Analysis failed' },
+      { status: 500 }
+    );
+  }
+}
