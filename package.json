@@ -1,12 +1,24 @@
 {
-  "name": "news-apex-root",
-  "version": "1.2.2",
+  "name": "news-apex",
+  "version": "1.2.6",
   "private": true,
   "scripts": {
-    "install:frontend": "cd frontend/nextjs && npm install",
-    "build": "cd frontend/nextjs && npm run build",
     "dev": "cd frontend/nextjs && npm run dev",
+    "build": "cd frontend/nextjs && npm run build",
     "start": "cd frontend/nextjs && npm run start",
-    "lint": "cd frontend/nextjs && npm run lint"
+    "lint": "cd frontend/nextjs && npm run lint",
+    "install:frontend": "cd frontend/nextjs && npm install"
+  },
+  "dependencies": {
+    "next": "^15.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "^15.2.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17"
   }
 }
