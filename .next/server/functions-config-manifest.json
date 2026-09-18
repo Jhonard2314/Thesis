@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/news": {
+      "maxDuration": 60
+    },
+    "/api/bias": {
+      "maxDuration": 60
+    }
+  }
+}
