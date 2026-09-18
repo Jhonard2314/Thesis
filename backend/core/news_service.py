@@ -61,15 +61,43 @@ class NewsService:
 
         self.bias_model = None
         self.bias_tokenizer = None
+        self.bias_model_status = "Idle"
+        self.bias_model_error = None
+        self.bias_load_started_at = None
 
         self.summarizer_model = None
         self.summarizer_tokenizer = None
+        self.summarizer_status = "Idle"
+        self.summarizer_error = None
+        self.summarizer_load_started_at = None
         self._summarizer_load_attempted = False
+        self._summarizer_load_started = False
+
+    def get_loading_elapsed(self, model="bias"):
+        """Returns seconds elapsed since Loading started, or None if not Loading."""
+        import time as _time
+        if model == "bias":
+            if self.bias_model_status == "Loading" and self.bias_load_started_at:
+                return _time.time() - self.bias_load_started_at
+            return None
+        elif model == "summarizer":
+            if self.summarizer_status == "Loading" and self.summarizer_load_started_at:
+                return _time.time() - self.summarizer_load_started_at
+            return None
+        return None
+
+    def is_stuck_loading(self, model="bias", threshold_seconds=180):
+        """Returns True if model has been in Loading state longer than threshold (default 3 min)."""
+        elapsed = self.get_loading_elapsed(model)
+        return elapsed is not None and elapsed > threshold_seconds
 
     def load_local_bias_model(self):
-        """Attempts to load the local BERT model for bias detection."""
+        """Attempts to load the local BERT model for bias detection. Updates self.bias_model_status on all paths."""
+        import time as _time
+        self.bias_model_status = "Loading"
+        self.bias_model_error = None
+        self.bias_load_started_at = _time.time()
         try:
-            # Handle both structured (local) and flat (HF Space) layouts
             base_path = os.path.dirname(os.path.abspath(__file__))
             
             backend_dir_local = os.path.dirname(base_path)
@@ -97,33 +125,46 @@ class NewsService:
                     break
             
             if model_path:
-                # Import config safely
                 try:
                     from bias_module import config as bias_config
                     model_name = bias_config.MODEL_NAME
                 except ImportError:
-                    # Fallback for flat structure
-                    model_name = "bert-base-uncased" 
+                    model_name = "bert-base-uncased"
                 
+                print(f"DEBUG: Loading tokenizer + bert-base-uncased skeleton from HF (cached after first run)...", file=sys.stderr)
                 self.bias_tokenizer = BertTokenizer.from_pretrained(model_name)
                 self.bias_model = BertForSequenceClassification.from_pretrained(
                     model_name,
                     num_labels=2
                 )
                 
+                print(f"DEBUG: Loading state_dict from {model_path} (map_location=cpu)...", file=sys.stderr)
                 self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
                 self.bias_model.eval()
                 print(f"Local bias model loaded successfully from {model_path}", file=sys.stderr)
+                self.bias_model_status = "Loaded"
+                self.bias_load_started_at = None
                 return True
             else:
-                print(f"Model file 'bert_babe.pt' not found in any expected location.", file=sys.stderr)
+                msg = f"Model file 'bert_babe.pt' not found in any expected location. Checked {len(possible_paths)} paths."
+                print(msg, file=sys.stderr)
+                self.bias_model_status = "Error"
+                self.bias_model_error = msg
+                self.bias_model = None
+                self.bias_tokenizer = None
+                self.bias_load_started_at = None
                 return False
         except Exception as e:
-            print(f"Error loading local bias model: {e}", file=sys.stderr)
             import traceback
-            traceback.print_exc(file=sys.stderr)
+            tb = traceback.format_exc()
+            msg = f"Error loading local bias model: {e}"
+            print(msg, file=sys.stderr)
+            print(tb, file=sys.stderr)
+            self.bias_model_status = "Error"
+            self.bias_model_error = msg + "\n" + tb
             self.bias_model = None
             self.bias_tokenizer = None
+            self.bias_load_started_at = None
             return False
 
     def get_top_biased_words_gradient(self, text, top_k=5):
@@ -443,9 +484,31 @@ class NewsService:
             return None
 
     def load_local_summarizer(self):
-        if self._summarizer_load_attempted:
+        """Attempts to load the local BART summarizer. Updates self.summarizer_status on ALL exit paths."""
+        import time as _time
+        # If a load is already in progress in a daemon thread, return current state without fighting over resources
+        if self._summarizer_load_started and self.summarizer_status == "Loading":
             return self.summarizer_model is not None
+
+        # If we've completed an attempt before (Idle means it was never started), skip re-downloading
+        if self._summarizer_load_attempted and self.summarizer_status != "Idle":
+            # Explicitly re-assert status consistency in case a caller cleared the model
+            if self.summarizer_model is not None and self.summarizer_status != "Loaded":
+                self.summarizer_status = "Loaded"
+                self.summarizer_error = None
+                self.summarizer_load_started_at = None
+            elif self.summarizer_model is None and self.summarizer_status not in ("Error", "Loading"):
+                self.summarizer_status = "Error"
+                self.summarizer_load_started_at = None
+                if not self.summarizer_error:
+                    self.summarizer_error = "Load previously failed; model reference is None."
+            return self.summarizer_model is not None
+
+        self._summarizer_load_started = True
         self._summarizer_load_attempted = True
+        self.summarizer_status = "Loading"
+        self.summarizer_error = None
+        self.summarizer_load_started_at = _time.time()
         try:
             from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
             import torch
@@ -463,11 +526,21 @@ class NewsService:
                 self.summarizer_model = self.summarizer_model.to("cpu")
             self.summarizer_model.eval()
             print(f"{model_name} summarizer loaded successfully.", file=sys.stderr)
+            self.summarizer_status = "Loaded"
+            self.summarizer_error = None
+            self.summarizer_load_started_at = None
             return True
         except Exception as e:
-            print(f"Error loading local summarizer: {e}. Will use Hugging Face API fallback.", file=sys.stderr)
+            import traceback
+            tb = traceback.format_exc()
+            msg = f"Error loading local summarizer: {e}. Will use Hugging Face API fallback."
+            print(msg, file=sys.stderr)
+            print(tb, file=sys.stderr)
             self.summarizer_model = None
             self.summarizer_tokenizer = None
+            self.summarizer_status = "Error"
+            self.summarizer_error = msg + "\n" + tb
+            self.summarizer_load_started_at = None
             return False
 
     def _summarize_with_local_model(self, text):
