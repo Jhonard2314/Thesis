@@ -12,8 +12,10 @@ env/
 *.bin
 **/models/
 **/data/model_cache/
+backend/bias_module/data/model_cache/
 node_modules/
 dist/
 build/
 # bias_module/ - Removing this to allow BERT model push
 .streamlit_config/
+.vercel/
