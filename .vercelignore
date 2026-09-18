@@ -10,11 +10,29 @@ dist
 venv/
 env/
 .env
-backend/bias_module/data/model_cache/
-**/data/model_cache/
-backend/tests/
-**/*.parquet
-backend/bias_module/data/cache/
-.vercel/
 Dockerfile
 .dockerignore
+backend/tests/
+**/*.parquet
+
+# --- LARGE FILES / CACHE / TENSORS: EXCLUDE TO STAY UNDER VERCELL 100MB LIMIT ---
+
+# All model binary weights (anywhere)
+**/*.bin
+**/*.pt
+**/*.pth
+**/*.safetensors
+**/*.ckpt
+
+# Hugging Face / local model caches (anywhere)
+**/model_cache/**
+**/models/**
+**/data/model_cache/**
+**/data/cache/**
+backend/bias_module/data/model_cache/**
+backend/bias_module/data/cache/**
+backend/models/**
+
+# Dask / pandas / datasets caches
+**/.cache/**
+**/cache/huggingface/**
