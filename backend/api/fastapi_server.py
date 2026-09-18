@@ -97,8 +97,20 @@ def read_root():
         "summarizer_model": "facebook/bart-large-cnn",
         "bias_model_local": "bert_babe.pt (bert-base-uncased fine-tuned)",
         "hf_remote_available": service.hf_client is not None,
-        "api_version": "1.2.1"
+        "api_version": "1.2.2"
     }
+    # Effective bias status: reflects what /analyze will actually return to users
+    if service.bias_model_status == "Loaded":
+        resp["bias_effective_status"] = "Ready"
+    elif service.bias_model_status == "Loading":
+        resp["bias_effective_status"] = "Loading (HF fallback active)" if service.hf_client is not None else "Loading"
+    elif service.bias_model_status == "Error" and service.hf_client is not None:
+        resp["bias_effective_status"] = "Ready (HF remote fallback)"
+        resp["bias_note"] = "Local bert_babe.pt not deployed on this server. Bias analysis uses Hugging Face Inference API remote fallback (facebook/bart-large-mnli zero-shot). All /analyze requests still return 200 OK. To enable local gradient-based top_words, add bert_babe.pt to backend/models/."
+    elif service.bias_model_status == "Error":
+        resp["bias_effective_status"] = "Error (no fallback)"
+    else:
+        resp["bias_effective_status"] = "Idle"
     if service.bias_model_error:
         resp["bias_model_error"] = str(service.bias_model_error)[:1200]
     if service.summarizer_error:
@@ -141,7 +153,7 @@ def health_check():
         "bias_stuck_loading": bias_stuck,
         "summarizer_stuck_loading": sum_stuck,
         "hf_remote_available": service.hf_client is not None,
-        "api_version": "1.2.1"
+        "api_version": "1.2.2"
     }
 
 @app.get("/status")
@@ -151,7 +163,7 @@ def status_detailed():
     sum_elapsed = service.get_loading_elapsed("summarizer")
     resp = {
         "api": {
-            "version": "1.2.1",
+            "version": "1.2.2",
             "service": "NewsApex AI Backend"
         },
         "bias_model": {
