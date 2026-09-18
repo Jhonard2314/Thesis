@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "rootDirectory": "frontend/nextjs",
-  "ignoreCommand": "bash -c \"if [ $VERCEL_GIT_COMMIT_REF != 'main' ] && [ $VERCEL_GIT_COMMIT_REF != 'master' ] && [ $VERCEL_GIT_COMMIT_REF != 'feature/reorganize-project-structure' ]; then exit 1; fi; exit 0\""
+  "installCommand": "cd frontend/nextjs && npm install",
+  "buildCommand": "cd frontend/nextjs && npm run build",
+  "outputDirectory": "frontend/nextjs/.next"
 }

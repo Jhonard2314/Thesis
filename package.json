@@ -1,0 +1,12 @@
+{
+  "name": "news-apex-root",
+  "version": "1.2.2",
+  "private": true,
+  "scripts": {
+    "install:frontend": "cd frontend/nextjs && npm install",
+    "build": "cd frontend/nextjs && npm run build",
+    "dev": "cd frontend/nextjs && npm run dev",
+    "start": "cd frontend/nextjs && npm run start",
+    "lint": "cd frontend/nextjs && npm run lint"
+  }
+}
