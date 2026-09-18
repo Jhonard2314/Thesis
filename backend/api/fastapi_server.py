@@ -29,15 +29,16 @@ service = NewsService()
 
 @app.on_event("startup")
 async def startup_event():
-    """Load the model in the background so the server starts immediately and passes the health check."""
     import threading
-    def load_model():
+    def load_models():
         print("Startup Task: Pre-loading bias model...", file=sys.stderr)
         service.load_local_bias_model()
         print("Startup Task: Bias model ready.", file=sys.stderr)
-    
-    # Run loading in a background thread to prevent blocking the FastAPI startup loop
-    threading.Thread(target=load_model, daemon=True).start()
+        print("Startup Task: Pre-loading facebook/bart-large-cnn summarizer...", file=sys.stderr)
+        service.load_local_summarizer()
+        print("Startup Task: Summarizer ready.", file=sys.stderr)
+
+    threading.Thread(target=load_models, daemon=True).start()
 
 class AnalysisRequest(BaseModel):
     url: Optional[str] = None
@@ -46,13 +47,15 @@ class AnalysisRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    """Simple health check endpoint for Hugging Face and Vercel monitoring."""
-    model_status = "Loaded" if service.bias_model else "Loading (Background)"
+    bias_status = "Loaded" if service.bias_model else "Loading (Background)"
+    sum_status = "Loaded" if service.summarizer_model else ("Loading (Background)" if service._summarizer_load_attempted else "Idle")
     return {
         "status": "online",
         "service": "NewsApex AI Backend",
-        "model_status": model_status,
-        "api_version": "1.1.0"
+        "bias_model_status": bias_status,
+        "summarizer_status": sum_status,
+        "summarizer_model": "facebook/bart-large-cnn",
+        "api_version": "1.2.0"
     }
 
 @app.get("/health")

@@ -60,6 +60,10 @@ class NewsService:
         self.bias_model = None
         self.bias_tokenizer = None
 
+        self.summarizer_model = None
+        self.summarizer_tokenizer = None
+        self._summarizer_load_attempted = False
+
     def load_local_bias_model(self):
         try:
             import torch
@@ -362,15 +366,84 @@ class NewsService:
             # print(f"Extraction error: {e}", file=sys.stderr)
             return None
 
-    def summarize_content(self, text):
-        if not self.hf_client or not text or len(text.strip()) < 100: return None
+    def load_local_summarizer(self):
+        if self._summarizer_load_attempted:
+            return self.summarizer_model is not None
+        self._summarizer_load_attempted = True
         try:
-            truncated_text = text[:3000]
-            response = self.hf_client.summarization(truncated_text, model="facebook/bart-large-cnn")
-            if hasattr(response, 'summary_text'): return response.summary_text
-            if isinstance(response, list) and len(response) > 0: return response[0].get('summary_text') if isinstance(response[0], dict) else str(response[0])
-            if isinstance(response, dict): return response.get('summary_text')
-            return str(response)
+            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+            import torch
+
+            model_name = "facebook/bart-large-cnn"
+            print(f"Loading {model_name} summarizer (this may take a moment on first run)...", file=sys.stderr)
+
+            self.summarizer_tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.summarizer_model = AutoModelForSeq2SeqLM.from_pretrained(
+                model_name,
+                device_map="auto" if torch.cuda.is_available() else None,
+                torch_dtype=torch.float32
+            )
+            if not torch.cuda.is_available():
+                self.summarizer_model = self.summarizer_model.to("cpu")
+            self.summarizer_model.eval()
+            print(f"{model_name} summarizer loaded successfully.", file=sys.stderr)
+            return True
         except Exception as e:
-            print(f"Summary error: {e}", file=sys.stderr)
+            print(f"Error loading local summarizer: {e}. Will use Hugging Face API fallback.", file=sys.stderr)
+            self.summarizer_model = None
+            self.summarizer_tokenizer = None
+            return False
+
+    def _summarize_with_local_model(self, text):
+        try:
+            import torch
+            inputs = self.summarizer_tokenizer(
+                text,
+                max_length=1024,
+                truncation=True,
+                return_tensors="pt"
+            )
+            device = next(self.summarizer_model.parameters()).device
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+
+            input_length = inputs["input_ids"].shape[1]
+            max_len = min(250, max(60, input_length // 3))
+            min_len = min(80, max(30, input_length // 6))
+
+            with torch.no_grad():
+                summary_ids = self.summarizer_model.generate(
+                    inputs["input_ids"],
+                    attention_mask=inputs["attention_mask"],
+                    max_length=max_len,
+                    min_length=min_len,
+                    length_penalty=2.0,
+                    num_beams=4,
+                    early_stopping=True,
+                    do_sample=False
+                )
+            return self.summarizer_tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        except Exception as e:
+            print(f"Local summarization error: {e}", file=sys.stderr)
             return None
+
+    def summarize_content(self, text):
+        if not text or len(text.strip()) < 100:
+            return None
+        truncated_text = text[:3000]
+
+        if self.load_local_summarizer():
+            result = self._summarize_with_local_model(truncated_text)
+            if result and len(result.strip()) > 30:
+                return result
+
+        if self.hf_client:
+            try:
+                response = self.hf_client.summarization(truncated_text, model="facebook/bart-large-cnn")
+                if hasattr(response, 'summary_text'): return response.summary_text
+                if isinstance(response, list) and len(response) > 0: return response[0].get('summary_text') if isinstance(response[0], dict) else str(response[0])
+                if isinstance(response, dict): return response.get('summary_text')
+                return str(response)
+            except Exception as e:
+                print(f"Hugging Face API summarization fallback error: {e}", file=sys.stderr)
+
+        return None
