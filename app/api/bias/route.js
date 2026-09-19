@@ -20,6 +20,7 @@ export async function POST(request) {
     const action = body.action || 'analyze_bias';
     const existingContent = body.content || body.full_content;
     const snippet = body.snippet || '';
+    const scrapedContent = body.scraped_content || null;
 
     if (!articleUrl && !existingContent) {
       return NextResponse.json({ error: 'Article URL or content is required' }, { status: 400 });
@@ -38,6 +39,7 @@ export async function POST(request) {
             url: articleUrl,
             content: existingContent,
             snippet: snippet,
+            scraped_content: scrapedContent,
             action: action
           }),
           signal: controller.signal

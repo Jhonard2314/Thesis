@@ -462,6 +462,79 @@ class NewsService:
             print(f"Guardian Exception: {str(e)}", file=sys.stderr)
             return []
 
+    def check_scrapable(self, article):
+        """
+        Fast scrapability check with a short timeout.
+        Returns the article dict with 'scrapable' and 'scraped_content' fields added.
+        Guardian articles are always marked scrapable (reliable source, no blocking).
+        For others: try a quick HEAD request first (cheap), then attempt a lightweight scrape.
+        """
+        url = article.get("link")
+        snippet = article.get("snippet") or ""
+        source = (article.get("source_id") or "").lower()
+
+        # Guardian is always reliable — skip the network check entirely
+        if "guardian" in source:
+            article["scrapable"] = True
+            article["scraped_content"] = None  # will be scraped on demand at analysis time
+            return article
+
+        # Snippet-only pass: if snippet is rich enough (≥150 chars), mark as usable
+        # even without a full scrape — bias model can work with a good snippet
+        if len(snippet.strip()) >= 150:
+            article["snippet_only"] = True
+
+        if not url:
+            article["scrapable"] = len(snippet.strip()) >= 150
+            article["scraped_content"] = None
+            return article
+
+        try:
+            # Step 1: HEAD request — fast check for 200 status and content-type
+            head = self.session.head(url, timeout=5, allow_redirects=True)
+            if head.status_code != 200:
+                article["scrapable"] = len(snippet.strip()) >= 150
+                article["scraped_content"] = None
+                return article
+            content_type = head.headers.get("Content-Type", "")
+            if "text/html" not in content_type:
+                article["scrapable"] = len(snippet.strip()) >= 150
+                article["scraped_content"] = None
+                return article
+        except Exception:
+            # HEAD failed (timeout, SSL error, etc.) — fall back to snippet check
+            article["scrapable"] = len(snippet.strip()) >= 150
+            article["scraped_content"] = None
+            return article
+
+        try:
+            # Step 2: Quick lightweight scrape with tight 6s timeout
+            content = self.get_full_content(url, timeout=6)
+            if content:
+                article["scrapable"] = True
+                article["scraped_content"] = content  # cache it so /analyze doesn't re-scrape
+            else:
+                article["scrapable"] = len(snippet.strip()) >= 150
+                article["scraped_content"] = None
+        except Exception:
+            article["scrapable"] = len(snippet.strip()) >= 150
+            article["scraped_content"] = None
+
+        return article
+
+    def prescreen_articles(self, articles, max_workers=8):
+        """
+        Runs check_scrapable() in parallel across all articles.
+        Returns only articles where scrapable=True, up to 20.
+        """
+        if not articles:
+            return []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            screened = list(executor.map(self.check_scrapable, articles))
+        scannable = [a for a in screened if a.get("scrapable")]
+        print(f"Prescreening: {len(scannable)}/{len(screened)} articles passed scrapability check.", file=sys.stderr)
+        return scannable
+
     def fetch_all_news(self, query=None, category=None, language="en"):
         all_articles = []
         try:
@@ -492,7 +565,10 @@ class NewsService:
         except:
             pass
 
-        return unique_articles[:20]
+        # Pre-screen: filter out articles that cannot be scraped and have no useful snippet
+        screened = self.prescreen_articles(unique_articles)
+        # Fall back to unscreened if all failed (shouldn't happen, but safety net)
+        return screened[:20] if screened else unique_articles[:20]
 
     def get_full_content(self, url, timeout=None):
         try:
