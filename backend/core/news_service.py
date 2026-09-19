@@ -399,10 +399,11 @@ class NewsService:
             return []
 
     def _clean_snippet(self, raw):
-        """Decode HTML entities, strip truncation markers, and normalise whitespace."""
+        """Decode HTML entities, strip HTML tags, strip truncation markers, and normalise whitespace."""
         if not raw:
             return ""
-        text = html.unescape(raw)                        # decode &#8230; &amp; etc.
+        text = html.unescape(raw)                        # decode &#8230; &amp; \u003cstrong\u003e etc.
+        text = re.sub(r'<[^>]+>', ' ', text)             # strip HTML tags like <strong>, <em>, <a>
         text = re.sub(r'\[[\+\-]?\d+\s*chars?\]', '', text)  # strip [+2847 chars]
         text = re.sub(r'\[\.\.\.\]', '', text)           # strip [...]
         text = re.sub(r'\.{3,}$', '', text.strip())      # strip trailing ...
@@ -494,19 +495,16 @@ class NewsService:
         """
         Fast scrapability check with a short timeout.
         Returns the article dict with 'scrapable' and 'scraped_content' fields added.
-        Guardian articles are always marked scrapable (reliable source, no blocking).
-        For others: try a quick HEAD request first (cheap), then attempt a lightweight scrape.
+        All sources (including Guardian) are screened — Guardian gets a generous 10s timeout
+        since it's reliable, but live-blogs and paywalled pages still need to be caught.
         Falls back to snippet only if it genuinely contains ≥2 complete sentences of clean text.
         """
         url = article.get("link")
         snippet = article.get("snippet") or ""
         source = (article.get("source_id") or "").lower()
 
-        # Guardian is always reliable — skip the network check entirely
-        if "guardian" in source:
-            article["scrapable"] = True
-            article["scraped_content"] = None  # will be scraped on demand at analysis time
-            return article
+        # Determine scrape timeout — Guardian is reliable, give it more time
+        scrape_timeout = 10 if "guardian" in source else 6
 
         if not url:
             usable = self._snippet_is_usable(snippet)
@@ -539,8 +537,8 @@ class NewsService:
             return article
 
         try:
-            # Step 2: Quick lightweight scrape with tight 6s timeout
-            content = self.get_full_content(url, timeout=6)
+            # Step 2: Lightweight scrape
+            content = self.get_full_content(url, timeout=scrape_timeout)
             if content:
                 article["scrapable"] = True
                 article["snippet_only"] = False
