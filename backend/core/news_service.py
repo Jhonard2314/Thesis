@@ -1,6 +1,7 @@
 import requests
 import os
 import re
+import html
 from dotenv import load_dotenv
 from newspaper import Article, Config
 from huggingface_hub import InferenceClient
@@ -391,11 +392,22 @@ class NewsService:
                 "source_id": r.get("source"),
                 "pubDate": r.get("published_at"),
                 "image_url": r.get("image"),
-                "snippet": r.get("description")
+                "snippet": self._clean_snippet(r.get("description"))
             } for r in data.get("data", []) if r.get("title")]
         except Exception as e:
             print(f"Mediastack Exception: {e}", file=sys.stderr)
             return []
+
+    def _clean_snippet(self, raw):
+        """Decode HTML entities, strip truncation markers, and normalise whitespace."""
+        if not raw:
+            return ""
+        text = html.unescape(raw)                        # decode &#8230; &amp; etc.
+        text = re.sub(r'\[[\+\-]?\d+\s*chars?\]', '', text)  # strip [+2847 chars]
+        text = re.sub(r'\[\.\.\.\]', '', text)           # strip [...]
+        text = re.sub(r'\.{3,}$', '', text.strip())      # strip trailing ...
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
 
     def fetch_newsdata(self, query=None, category=None, language="en"):
         if not self.newsdata_api_key: return []
@@ -415,7 +427,7 @@ class NewsService:
                     "source_id": r.get("source_id"), 
                     "pubDate": r.get("pubDate"),
                     "image_url": r.get("image_url"),
-                    "snippet": r.get("description") or r.get("content")
+                    "snippet": self._clean_snippet(r.get("description") or r.get("content"))
                 } for r in data.get("results", [])]
             return []
         except: return []
@@ -456,11 +468,27 @@ class NewsService:
                 "source_id": "The Guardian", 
                 "pubDate": r.get("webPublicationDate"),
                 "image_url": r.get("fields", {}).get("thumbnail"),
-                "snippet": r.get("fields", {}).get("trailText")
+                "snippet": self._clean_snippet(r.get("fields", {}).get("trailText"))
             } for r in results]
         except Exception as e:
             print(f"Guardian Exception: {str(e)}", file=sys.stderr)
             return []
+
+    def _snippet_is_usable(self, snippet):
+        """
+        Returns True only if the snippet has enough clean, sentence-bearing content
+        to produce at least 2 valid sentences for the bias model.
+        """
+        if not snippet:
+            return False
+        clean = self._clean_snippet(snippet)
+        if len(clean) < 200:
+            return False
+        # Must contain at least one sentence-ending punctuation followed by a capital letter
+        # i.e. at least 2 complete sentences
+        sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', clean)
+        valid = [s for s in sentences if len(s.split()) >= 4]
+        return len(valid) >= 2
 
     def check_scrapable(self, article):
         """
@@ -468,6 +496,7 @@ class NewsService:
         Returns the article dict with 'scrapable' and 'scraped_content' fields added.
         Guardian articles are always marked scrapable (reliable source, no blocking).
         For others: try a quick HEAD request first (cheap), then attempt a lightweight scrape.
+        Falls back to snippet only if it genuinely contains ≥2 complete sentences of clean text.
         """
         url = article.get("link")
         snippet = article.get("snippet") or ""
@@ -479,13 +508,10 @@ class NewsService:
             article["scraped_content"] = None  # will be scraped on demand at analysis time
             return article
 
-        # Snippet-only pass: if snippet is rich enough (≥150 chars), mark as usable
-        # even without a full scrape — bias model can work with a good snippet
-        if len(snippet.strip()) >= 150:
-            article["snippet_only"] = True
-
         if not url:
-            article["scrapable"] = len(snippet.strip()) >= 150
+            usable = self._snippet_is_usable(snippet)
+            article["scrapable"] = usable
+            article["snippet_only"] = usable
             article["scraped_content"] = None
             return article
 
@@ -493,17 +519,22 @@ class NewsService:
             # Step 1: HEAD request — fast check for 200 status and content-type
             head = self.session.head(url, timeout=5, allow_redirects=True)
             if head.status_code != 200:
-                article["scrapable"] = len(snippet.strip()) >= 150
+                usable = self._snippet_is_usable(snippet)
+                article["scrapable"] = usable
+                article["snippet_only"] = usable
                 article["scraped_content"] = None
                 return article
             content_type = head.headers.get("Content-Type", "")
             if "text/html" not in content_type:
-                article["scrapable"] = len(snippet.strip()) >= 150
+                usable = self._snippet_is_usable(snippet)
+                article["scrapable"] = usable
+                article["snippet_only"] = usable
                 article["scraped_content"] = None
                 return article
         except Exception:
-            # HEAD failed (timeout, SSL error, etc.) — fall back to snippet check
-            article["scrapable"] = len(snippet.strip()) >= 150
+            usable = self._snippet_is_usable(snippet)
+            article["scrapable"] = usable
+            article["snippet_only"] = usable
             article["scraped_content"] = None
             return article
 
@@ -512,12 +543,17 @@ class NewsService:
             content = self.get_full_content(url, timeout=6)
             if content:
                 article["scrapable"] = True
+                article["snippet_only"] = False
                 article["scraped_content"] = content  # cache it so /analyze doesn't re-scrape
             else:
-                article["scrapable"] = len(snippet.strip()) >= 150
+                usable = self._snippet_is_usable(snippet)
+                article["scrapable"] = usable
+                article["snippet_only"] = usable
                 article["scraped_content"] = None
         except Exception:
-            article["scrapable"] = len(snippet.strip()) >= 150
+            usable = self._snippet_is_usable(snippet)
+            article["scrapable"] = usable
+            article["snippet_only"] = usable
             article["scraped_content"] = None
 
         return article
@@ -567,6 +603,22 @@ class NewsService:
 
         # Pre-screen: filter out articles that cannot be scraped and have no useful snippet
         screened = self.prescreen_articles(unique_articles)
+
+        # Search relevance filter: when a query was given, only keep articles whose
+        # title or snippet actually contain at least one of the query words.
+        if query and query.strip():
+            query_words = [w.lower() for w in re.split(r'\W+', query.strip()) if len(w) >= 3]
+            if query_words:
+                def is_relevant(a):
+                    haystack = " ".join(filter(None, [
+                        (a.get("title") or "").lower(),
+                        (a.get("snippet") or "").lower()
+                    ]))
+                    return any(w in haystack for w in query_words)
+                relevant = [a for a in screened if is_relevant(a)]
+                # Fall back to all screened if relevance filter removed everything
+                screened = relevant if relevant else screened
+
         # Fall back to unscreened if all failed (shouldn't happen, but safety net)
         return screened[:20] if screened else unique_articles[:20]
 

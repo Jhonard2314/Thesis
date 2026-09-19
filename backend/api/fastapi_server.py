@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import json
 from typing import Optional
 from fastapi import FastAPI, HTTPException
@@ -231,9 +232,15 @@ def analyze(request: AnalysisRequest):
 
         # 1. Get content — priority: already-extracted content > pre-screened cache > live scrape > snippet fallback
         content = request.content or request.scraped_content or service.get_full_content(request.url)
-        if not content and request.snippet and len(request.snippet.strip()) >= 30:
-            print(f"Scraping failed for {request.url}, using snippet fallback ({len(request.snippet)} chars)", file=sys.stderr)
-            content = request.snippet.strip()
+        if not content and request.snippet:
+            import html as _html
+            clean_snippet = _html.unescape(request.snippet.strip())
+            # Strip truncation markers before checking length
+            clean_snippet = re.sub(r'\[[\+\-]?\d+\s*chars?\]', '', clean_snippet)
+            clean_snippet = re.sub(r'\[\.\.\.\]', '', clean_snippet).strip()
+            if len(clean_snippet) >= 80:
+                print(f"Scraping failed for {request.url}, using snippet fallback ({len(clean_snippet)} chars)", file=sys.stderr)
+                content = clean_snippet
         if not content:
             return {"error": "Could not retrieve content for this article."}
 
