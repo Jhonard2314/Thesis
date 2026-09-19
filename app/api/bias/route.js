@@ -19,6 +19,7 @@ export async function POST(request) {
     const articleUrl = body.url || body.articleUrl;
     const action = body.action || 'analyze_bias';
     const existingContent = body.content || body.full_content;
+    const snippet = body.snippet || '';
 
     if (!articleUrl && !existingContent) {
       return NextResponse.json({ error: 'Article URL or content is required' }, { status: 400 });
@@ -36,6 +37,7 @@ export async function POST(request) {
           body: JSON.stringify({
             url: articleUrl,
             content: existingContent,
+            snippet: snippet,
             action: action
           }),
           signal: controller.signal
