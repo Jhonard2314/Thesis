@@ -372,7 +372,7 @@ class NewsService:
         params = {
             "access_key": self.mediastack_api_key,
             "languages": "en",
-            "limit": 20,
+            "limit": 50,
             "sort": "published_desc"
         }
         if query:
@@ -413,8 +413,8 @@ class NewsService:
     def fetch_newsdata(self, query=None, category=None, language="en"):
         if not self.newsdata_api_key: return []
         url = "https://newsdata.io/api/1/news"
-        # Strictly enforce English
-        params = {"apikey": self.newsdata_api_key, "language": "en"}
+        # Strictly enforce English, request full content for better scrapability fallback
+        params = {"apikey": self.newsdata_api_key, "language": "en", "full_content": 1, "size": 50}
         if query: params["q"] = query
         if category and category != 'general': 
             params["category"] = category
@@ -438,7 +438,7 @@ class NewsService:
             print("Guardian: API key missing or placeholder, skipping.", file=sys.stderr)
             return []
         url = "https://content.guardianapis.com/search"
-        params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText", "page-size": 20}
+        params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText", "page-size": 50}
         if query: params["q"] = query
         category_map = {
             'business': 'business',
@@ -556,10 +556,10 @@ class NewsService:
 
         return article
 
-    def prescreen_articles(self, articles, max_workers=8):
+    def prescreen_articles(self, articles, max_workers=12):
         """
         Runs check_scrapable() in parallel across all articles.
-        Returns only articles where scrapable=True, up to 20.
+        Returns only articles where scrapable=True, up to 30.
         """
         if not articles:
             return []
@@ -618,7 +618,7 @@ class NewsService:
                 screened = relevant if relevant else screened
 
         # Fall back to unscreened if all failed (shouldn't happen, but safety net)
-        return screened[:20] if screened else unique_articles[:20]
+        return screened[:30] if screened else unique_articles[:30]
 
     def get_full_content(self, url, timeout=None):
         try:
