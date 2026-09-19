@@ -11,7 +11,9 @@ export default function NewsCard({ article, onArticleClick }) {
     publishedAt,
     source,
     author,
-    content
+    content,
+    scrapable,
+    snippet_only,
   } = article;
 
   const [imgError, setImgError] = useState(false);
@@ -33,8 +35,12 @@ export default function NewsCard({ article, onArticleClick }) {
     urlToImage.startsWith("http") &&
     !imgError;
 
-  // We show the card even without a perfect image, using a placeholder
-  // if (!isValidImage) return null;
+  // Determine scan badge
+  const scanBadge = scrapable
+    ? snippet_only
+      ? { label: '◑ Snippet Scan', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' }
+      : { label: '✓ Full Scan', color: 'bg-green-100 text-green-700 border-green-200' }
+    : null;
 
   const handleClick = (e) => {
     e.preventDefault();
@@ -65,6 +71,13 @@ export default function NewsCard({ article, onArticleClick }) {
             <div className="flex items-center justify-center h-full text-gray-300 bg-gray-50 border-b border-gray-100">
               <span className="text-2xl opacity-50">📰</span>
             </div>
+          )}
+
+          {/* Scan badge — top-right corner of image */}
+          {scanBadge && (
+            <span className={`absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full border ${scanBadge.color}`}>
+              {scanBadge.label}
+            </span>
           )}
         </div>
 

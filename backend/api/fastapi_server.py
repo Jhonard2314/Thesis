@@ -87,7 +87,8 @@ async def startup_event():
 class AnalysisRequest(BaseModel):
     url: Optional[str] = None
     content: Optional[str] = None
-    snippet: Optional[str] = None  # Fallback text when URL scraping fails
+    snippet: Optional[str] = None        # Fallback text when URL scraping fails
+    scraped_content: Optional[str] = None  # Pre-screened content cached at fetch time
     action: str = "analyze_bias"
 
 @app.get("/")
@@ -202,16 +203,19 @@ def status_detailed():
 def fetch_news(query: Optional[str] = None, category: Optional[str] = None):
     try:
         articles = service.fetch_all_news(query=query, category=category)
-        # Transform for frontend expectations if needed
         transformed = []
         for a in articles:
             transformed.append({
-                "title": a.get("title"),
-                "url": a.get("link"),
-                "source": {"name": a.get("source_id")},
-                "publishedAt": a.get("pubDate"),
-                "urlToImage": a.get("image_url"),
-                "description": a.get("snippet")
+                "title":          a.get("title"),
+                "url":            a.get("link"),
+                "source":         {"name": a.get("source_id")},
+                "publishedAt":    a.get("pubDate"),
+                "urlToImage":     a.get("image_url"),
+                "description":    a.get("snippet"),
+                # Pre-screening fields — used by frontend to badge cards and by /analyze to skip re-scraping
+                "scrapable":      a.get("scrapable", False),
+                "snippet_only":   a.get("snippet_only", False),
+                "scraped_content": a.get("scraped_content")  # cached content from pre-screen (avoids re-scrape)
             })
         return {"articles": transformed}
     except Exception as e:
@@ -225,8 +229,8 @@ def analyze(request: AnalysisRequest):
         if not request.url and not request.content:
             raise HTTPException(status_code=400, detail="URL or content required")
 
-        # 1. Get content — try scraping first, fall back to snippet if scraping fails
-        content = request.content or service.get_full_content(request.url)
+        # 1. Get content — priority: already-extracted content > pre-screened cache > live scrape > snippet fallback
+        content = request.content or request.scraped_content or service.get_full_content(request.url)
         if not content and request.snippet and len(request.snippet.strip()) >= 30:
             print(f"Scraping failed for {request.url}, using snippet fallback ({len(request.snippet)} chars)", file=sys.stderr)
             content = request.snippet.strip()

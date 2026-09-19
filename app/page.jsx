@@ -90,7 +90,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           url: article.url,
-          snippet: article.description || '',  // 🔹 Fallback for sites that block scraping
+          snippet: article.description || '',       // 🔹 Fallback for sites that block scraping
+          scraped_content: article.scraped_content || null, // 🔹 Use pre-screened cache if available
           action: 'get_summary'
         }),
       });
@@ -125,8 +126,9 @@ export default function Home() {
         },
         body: JSON.stringify({
           url: selectedArticle.url,
-          content: biasData?.full_content,       // 🔹 Pass already extracted content to save time
-          snippet: selectedArticle.description || '', // 🔹 Fallback for sites that block scraping
+          content: biasData?.full_content,                      // 🔹 Pass already extracted content to save time
+          snippet: selectedArticle.description || '',           // 🔹 Fallback for sites that block scraping
+          scraped_content: selectedArticle.scraped_content || null, // 🔹 Use pre-screened cache if available
           action: 'analyze_bias'
         }),
       });
