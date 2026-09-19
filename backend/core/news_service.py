@@ -39,6 +39,7 @@ class NewsService:
     def __init__(self):
         # API keys from .env with fallbacks for ease of use
         self.newsdata_api_key = os.getenv("NEWSDATA_API_KEY")
+        self.mediastack_api_key = os.getenv("MEDIASTACK_API_KEY")
         self.guardian_api_key = os.getenv("GUARDIAN_API_KEY", "22a8f287-72ca-4501-b9b8-bdf3884753d5")
         self.hf_token = os.getenv("HF_TOKEN")
         
@@ -362,6 +363,39 @@ class NewsService:
             
         return filtered_sentences
 
+    def fetch_mediastack(self, query=None, category=None, language="en"):
+        """Fetch articles from Mediastack API (mediastack.com)."""
+        if not self.mediastack_api_key:
+            return []
+        url = "http://api.mediastack.com/v1/news"
+        params = {
+            "access_key": self.mediastack_api_key,
+            "languages": "en",
+            "limit": 20,
+            "sort": "published_desc"
+        }
+        if query:
+            params["keywords"] = query
+        if category and category != 'general':
+            params["categories"] = category
+        try:
+            res = self.session.get(url, params=params, timeout=10)
+            data = res.json()
+            if data.get("error"):
+                print(f"Mediastack API error: {data['error'].get('message', 'Unknown error')}", file=sys.stderr)
+                return []
+            return [{
+                "title": r.get("title"),
+                "link": r.get("url"),
+                "source_id": r.get("source"),
+                "pubDate": r.get("published_at"),
+                "image_url": r.get("image"),
+                "snippet": r.get("description")
+            } for r in data.get("data", []) if r.get("title")]
+        except Exception as e:
+            print(f"Mediastack Exception: {e}", file=sys.stderr)
+            return []
+
     def fetch_newsdata(self, query=None, category=None, language="en"):
         if not self.newsdata_api_key: return []
         url = "https://newsdata.io/api/1/news"
@@ -429,6 +463,11 @@ class NewsService:
 
     def fetch_all_news(self, query=None, category=None, language="en"):
         all_articles = []
+        try:
+            all_articles.extend(self.fetch_mediastack(query, category, language))
+        except Exception as e:
+            print(f"Mediastack error: {e}", file=sys.stderr)
+
         try:
             all_articles.extend(self.fetch_newsdata(query, category, language))
         except Exception as e:
