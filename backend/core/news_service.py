@@ -376,7 +376,8 @@ class NewsService:
             "sort": "published_desc"
         }
         if query:
-            params["keywords"] = query
+            # Wrap multi-word queries in quotes for exact phrase matching
+            params["keywords"] = f'"{query}"' if ' ' in query.strip() else query
         if category and category != 'general':
             # Mediastack categories match the app's categories directly
             params["categories"] = category
@@ -415,7 +416,8 @@ class NewsService:
         url = "https://newsdata.io/api/1/news"
         # Strictly enforce English, request full content for better scrapability fallback
         params = {"apikey": self.newsdata_api_key, "language": "en", "full_content": 1, "size": 50}
-        if query: params["q"] = query
+        # Wrap multi-word queries in quotes for exact phrase matching
+        if query: params["q"] = f'"{query}"' if ' ' in query.strip() else query
         if category and category != 'general': 
             params["category"] = category
         try:
@@ -439,7 +441,9 @@ class NewsService:
             return []
         url = "https://content.guardianapis.com/search"
         params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText", "page-size": 50}
-        if query: params["q"] = query
+        if query:
+            # Wrap multi-word queries in quotes for exact phrase matching
+            params["q"] = f'"{query}"' if ' ' in query.strip() else query
         category_map = {
             'business': 'business',
             'technology': 'technology',
@@ -603,7 +607,7 @@ class NewsService:
         screened = self.prescreen_articles(unique_articles)
 
         # Search relevance filter: when a query was given, only keep articles whose
-        # title or snippet actually contain at least one of the query words.
+        # title or snippet contain ALL of the significant query words (AND logic).
         if query and query.strip():
             query_words = [w.lower() for w in re.split(r'\W+', query.strip()) if len(w) >= 3]
             if query_words:
@@ -612,9 +616,13 @@ class NewsService:
                         (a.get("title") or "").lower(),
                         (a.get("snippet") or "").lower()
                     ]))
-                    return any(w in haystack for w in query_words)
+                    return all(w in haystack for w in query_words)
                 relevant = [a for a in screened if is_relevant(a)]
-                # Fall back to all screened if relevance filter removed everything
+                # Fall back to any-word match if strict AND returns nothing
+                if not relevant:
+                    relevant = [a for a in screened if any(w in (
+                        (a.get("title") or "") + " " + (a.get("snippet") or "")
+                    ).lower() for w in query_words)]
                 screened = relevant if relevant else screened
 
         # Fall back to unscreened if all failed (shouldn't happen, but safety net)
