@@ -608,6 +608,7 @@ class NewsService:
 
         # Search relevance filter: when a query was given, only keep articles whose
         # title or snippet contain ALL of the significant query words (AND logic).
+        # Returns empty list if nothing matches — frontend shows "No results" instead of misleading fallback.
         if query and query.strip():
             query_words = [w.lower() for w in re.split(r'\W+', query.strip()) if len(w) >= 3]
             if query_words:
@@ -617,13 +618,7 @@ class NewsService:
                         (a.get("snippet") or "").lower()
                     ]))
                     return all(w in haystack for w in query_words)
-                relevant = [a for a in screened if is_relevant(a)]
-                # Fall back to any-word match if strict AND returns nothing
-                if not relevant:
-                    relevant = [a for a in screened if any(w in (
-                        (a.get("title") or "") + " " + (a.get("snippet") or "")
-                    ).lower() for w in query_words)]
-                screened = relevant if relevant else screened
+                screened = [a for a in screened if is_relevant(a)]
 
         # Fall back to unscreened if all failed (shouldn't happen, but safety net)
         return screened[:30] if screened else unique_articles[:30]
