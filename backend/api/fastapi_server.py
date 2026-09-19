@@ -31,6 +31,12 @@ service = NewsService()
 async def startup_event():
     import threading
     import traceback as tb_global
+
+    # Log which news API keys are configured (key presence only, not values)
+    print(f"Startup: NEWSDATA_API_KEY={'set' if service.newsdata_api_key else 'MISSING'}", file=sys.stderr)
+    print(f"Startup: MEDIASTACK_API_KEY={'set' if service.mediastack_api_key else 'MISSING'}", file=sys.stderr)
+    print(f"Startup: GUARDIAN_API_KEY={'set' if service.guardian_api_key else 'MISSING'}", file=sys.stderr)
+
     def load_models():
         # OUTER catch-all: if anything unexpected happens (even between try blocks),
         # mark BOTH models as Error so callers never see a permanent "Loading" state.
