@@ -271,12 +271,35 @@ export default function Home() {
 
         {/* No Results */}
         {!loading && articles.length === 0 && !error && (
-          <div className="text-center py-12">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <div className="text-center py-16">
+            <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No articles found</h3>
-            <p className="mt-1 text-sm text-gray-500">Try searching for something else or choose a different category.</p>
+            {submittedQuery ? (
+              <>
+                <h3 className="text-base font-semibold text-gray-800 mb-1">
+                  No results for <span className="text-blue-600">"{submittedQuery}"</span>
+                </h3>
+                <p className="text-sm text-gray-500 mb-5">
+                  No scannable articles matched your search. Try different keywords.
+                </p>
+                <button
+                  onClick={() => {
+                    setSubmittedQuery('');
+                    setSearchQuery('');
+                    setActiveCategory('general');
+                  }}
+                  className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Back to General News
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-sm font-medium text-gray-900">No articles found</h3>
+                <p className="mt-1 text-sm text-gray-500">Try a different category or search term.</p>
+              </>
+            )}
           </div>
         )}
       </main>
