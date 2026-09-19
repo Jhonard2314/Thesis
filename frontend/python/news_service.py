@@ -37,7 +37,7 @@ class NewsService:
     }
 
     def __init__(self):
-        self.newsdata_api_key = os.getenv("NEWSDATA_API_KEY", "pub_c319de1ec46240dc912d9b112e01c866")
+        self.newsdata_api_key = os.getenv("NEWSDATA_API_KEY")
         self.guardian_api_key = os.getenv("GUARDIAN_API_KEY", "22a8f287-72ca-4501-b9b8-bdf3884753d5")
         self.hf_token = os.getenv("HF_TOKEN")
         
