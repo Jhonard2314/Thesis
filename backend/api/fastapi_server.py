@@ -234,12 +234,13 @@ def analyze(request: AnalysisRequest):
         content = request.content or request.scraped_content or service.get_full_content(request.url)
         if not content and request.snippet:
             import html as _html
+            import re as _re
             clean_snippet = _html.unescape(request.snippet.strip())
             # Strip HTML tags and truncation markers before checking length
-            clean_snippet = re.sub(r'<[^>]+>', ' ', clean_snippet)
-            clean_snippet = re.sub(r'\[[\+\-]?\d+\s*chars?\]', '', clean_snippet)
-            clean_snippet = re.sub(r'\[\.\.\.\]', '', clean_snippet)
-            clean_snippet = re.sub(r'\s+', ' ', clean_snippet).strip()
+            clean_snippet = _re.sub(r'<[^>]+>', ' ', clean_snippet)
+            clean_snippet = _re.sub(r'\[[\+\-]?\d+\s*chars?\]', '', clean_snippet)
+            clean_snippet = _re.sub(r'\[\.\.\.\]', '', clean_snippet)
+            clean_snippet = _re.sub(r'\s+', ' ', clean_snippet).strip()
             if len(clean_snippet) >= 80:
                 print(f"Scraping failed for {request.url}, using snippet fallback ({len(clean_snippet)} chars)", file=sys.stderr)
                 content = clean_snippet
