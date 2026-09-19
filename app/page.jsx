@@ -90,6 +90,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           url: article.url,
+          snippet: article.description || '',  // 🔹 Fallback for sites that block scraping
           action: 'get_summary'
         }),
       });
@@ -124,7 +125,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           url: selectedArticle.url,
-          content: biasData?.full_content, // 🔹 Pass already extracted content to save time
+          content: biasData?.full_content,       // 🔹 Pass already extracted content to save time
+          snippet: selectedArticle.description || '', // 🔹 Fallback for sites that block scraping
           action: 'analyze_bias'
         }),
       });

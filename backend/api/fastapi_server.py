@@ -87,6 +87,7 @@ async def startup_event():
 class AnalysisRequest(BaseModel):
     url: Optional[str] = None
     content: Optional[str] = None
+    snippet: Optional[str] = None  # Fallback text when URL scraping fails
     action: str = "analyze_bias"
 
 @app.get("/")
@@ -224,8 +225,11 @@ def analyze(request: AnalysisRequest):
         if not request.url and not request.content:
             raise HTTPException(status_code=400, detail="URL or content required")
 
-        # 1. Get content if not provided
+        # 1. Get content — try scraping first, fall back to snippet if scraping fails
         content = request.content or service.get_full_content(request.url)
+        if not content and request.snippet and len(request.snippet.strip()) >= 30:
+            print(f"Scraping failed for {request.url}, using snippet fallback ({len(request.snippet)} chars)", file=sys.stderr)
+            content = request.snippet.strip()
         if not content:
             return {"error": "Could not retrieve content for this article."}
 
