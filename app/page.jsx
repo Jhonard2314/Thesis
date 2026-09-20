@@ -166,10 +166,23 @@ export default function Home() {
           {stage === 'error' && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center max-w-lg mx-auto">
               <p className="text-red-700 font-bold mb-1">Analysis Failed</p>
-              <p className="text-red-600 text-sm">{errorMsg}</p>
-              <button onClick={reset} className="mt-4 px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors">
-                Try Again
-              </button>
+              <p className="text-red-600 text-sm mb-3">{errorMsg}</p>
+              {errorMsg?.toLowerCase().includes('retrieve') && (
+                <p className="text-gray-600 text-sm mb-4">
+                  This site may block automated access. Try copying and pasting the article text directly instead.
+                </p>
+              )}
+              <div className="flex gap-3 justify-center">
+                <button onClick={reset} className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors">
+                  Try Again
+                </button>
+                <button
+                  onClick={() => { setStage('idle'); setErrorMsg(''); setInput(''); setTimeout(() => inputRef.current?.focus(), 50); }}
+                  className="px-5 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors border border-gray-200"
+                >
+                  Paste Text Instead
+                </button>
+              </div>
             </div>
           )}
 
