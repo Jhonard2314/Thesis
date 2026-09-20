@@ -624,10 +624,33 @@ class NewsService:
         # Fall back to unscreened if all failed (shouldn't happen, but safety net)
         return screened[:30] if screened else unique_articles[:30]
 
+    def _is_prose_sentence(self, text):
+        """Returns True if the string looks like a real prose sentence, not a JSON fragment or metadata."""
+        t = text.strip()
+        if len(t) < 20:
+            return False
+        # Reject strings that contain JSON-like syntax
+        json_patterns = [
+            r'^\s*["\']?\w+["\']?\s*:', r'\\[ntr"\\]', r'["\']\s*:\s*["\'\[\{]',
+            r'\{\s*"', r'"\s*\}', r'"\s*,\s*"', r'^\s*[\[\{]', r'[\]\}]\s*$',
+            r'"type"\s*:', r'"model"\s*:', r'"attributes"\s*:', r'"blocks"\s*:',
+            r'linkType|urlLink|fragment|locator|isInline'
+        ]
+        for pattern in json_patterns:
+            if re.search(pattern, t):
+                return False
+        # Must start with a capital letter or a quote and contain mostly word chars
+        if not re.match(r'^[A-Z"\'\u201c\u2018]', t):
+            return False
+        # Must have at least 4 words
+        if len(t.split()) < 4:
+            return False
+        return True
+
     def _extract_next_data_text(self, html_text):
         """
         Extract article text from __NEXT_DATA__ JSON embedded in pages like BBC, Reuters, etc.
-        Walks the JSON tree and collects all string 'text'/'content'/'body' values.
+        Targets 'text' leaf nodes that contain prose sentences, with strict quality filtering.
         """
         try:
             match = re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html_text, re.DOTALL)
@@ -635,40 +658,65 @@ class NewsService:
                 return None
             data = json.loads(match.group(1))
 
-            # Recursively collect text blocks from the JSON tree
             collected = []
 
             def walk(obj, depth=0):
-                if depth > 15:
+                if depth > 20:
                     return
                 if isinstance(obj, str):
-                    clean = obj.strip()
-                    if len(clean) > 40 and not clean.startswith('{') and not clean.startswith('http'):
+                    clean = html.unescape(obj).strip()
+                    # Only keep strings that look like real prose sentences
+                    if self._is_prose_sentence(clean) and clean not in collected:
                         collected.append(clean)
                 elif isinstance(obj, dict):
-                    # Prioritise keys that are likely article content
-                    for key in ('text', 'content', 'body', 'blocks', 'paragraphs', 'value', 'html'):
+                    # For BBC: target 'text' inside 'model' dicts (fragment/paragraph structure)
+                    # but ONLY if they don't have a 'type' that indicates metadata
+                    obj_type = obj.get('type', '')
+                    if obj_type in ('fragment', 'paragraph', 'text', ''):
+                        model = obj.get('model', {})
+                        if isinstance(model, dict):
+                            text_val = model.get('text', '')
+                            if isinstance(text_val, str):
+                                walk(text_val, depth + 1)
+                        blocks = obj.get('blocks', [])
+                        if isinstance(blocks, list):
+                            for b in blocks:
+                                walk(b, depth + 1)
+                    # Always recurse into these known-safe keys
+                    for key in ('blocks', 'paragraphs', 'body', 'content', 'children', 'items'):
                         if key in obj:
                             walk(obj[key], depth + 1)
-                    for v in obj.values():
-                        walk(v, depth + 1)
                 elif isinstance(obj, list):
                     for item in obj:
                         walk(item, depth + 1)
 
             walk(data)
 
-            # Deduplicate while preserving order
+            # Final dedup and cleaning pass
             seen = set()
             unique = []
+            boilerplate = [
+                'bbc is not responsible', 'read about our approach',
+                'external linking', 'cookie', 'privacy policy',
+                'terms of use', 'sign in', 'subscribe', 'newsletter'
+            ]
             for s in collected:
-                stripped = re.sub(r'\s+', ' ', html.unescape(s)).strip()
-                if stripped not in seen and len(stripped) > 40:
-                    seen.add(stripped)
-                    unique.append(stripped)
+                s_lower = s.lower()
+                if any(b in s_lower for b in boilerplate):
+                    continue
+                # Strip residual JSON syntax from edges
+                s = re.sub(r'^[,\s\[\{"\':]+', '', s)
+                s = re.sub(r'[,\s\]\}"\']+$', '', s)
+                s = s.strip()
+                if s and s not in seen and self._is_prose_sentence(s):
+                    seen.add(s)
+                    unique.append(s)
+
+            if not unique:
+                return None
 
             full_text = ' '.join(unique)
-            return full_text if len(full_text) >= 400 else None
+            return full_text if len(full_text) >= 200 else None
         except Exception:
             return None
 
@@ -706,12 +754,14 @@ class NewsService:
 
             # Strategy 3: Extract all <p> tags as fallback
             paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', html_text, re.DOTALL | re.IGNORECASE)
-            p_text = ' '.join(
-                re.sub(r'<[^>]+>', '', p).strip()
-                for p in paragraphs
-                if len(re.sub(r'<[^>]+>', '', p).strip()) > 40
-            )
-            p_text = html.unescape(p_text).strip()
+            clean_paras = []
+            boilerplate_p = ['cookie', 'privacy', 'subscribe', 'newsletter', 'sign in', 'advertisement']
+            for p in paragraphs:
+                text_p = html.unescape(re.sub(r'<[^>]+>', '', p)).strip()
+                text_p = re.sub(r'\s+', ' ', text_p).strip()
+                if len(text_p) > 40 and not any(b in text_p.lower() for b in boilerplate_p):
+                    clean_paras.append(text_p)
+            p_text = ' '.join(clean_paras).strip()
             if len(p_text) >= 400:
                 return p_text
 
