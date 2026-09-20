@@ -2,6 +2,7 @@ import requests
 import os
 import re
 import html
+import json
 from dotenv import load_dotenv
 from newspaper import Article, Config
 from huggingface_hub import InferenceClient
@@ -623,6 +624,54 @@ class NewsService:
         # Fall back to unscreened if all failed (shouldn't happen, but safety net)
         return screened[:30] if screened else unique_articles[:30]
 
+    def _extract_next_data_text(self, html_text):
+        """
+        Extract article text from __NEXT_DATA__ JSON embedded in pages like BBC, Reuters, etc.
+        Walks the JSON tree and collects all string 'text'/'content'/'body' values.
+        """
+        try:
+            match = re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html_text, re.DOTALL)
+            if not match:
+                return None
+            data = json.loads(match.group(1))
+
+            # Recursively collect text blocks from the JSON tree
+            collected = []
+
+            def walk(obj, depth=0):
+                if depth > 15:
+                    return
+                if isinstance(obj, str):
+                    clean = obj.strip()
+                    if len(clean) > 40 and not clean.startswith('{') and not clean.startswith('http'):
+                        collected.append(clean)
+                elif isinstance(obj, dict):
+                    # Prioritise keys that are likely article content
+                    for key in ('text', 'content', 'body', 'blocks', 'paragraphs', 'value', 'html'):
+                        if key in obj:
+                            walk(obj[key], depth + 1)
+                    for v in obj.values():
+                        walk(v, depth + 1)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        walk(item, depth + 1)
+
+            walk(data)
+
+            # Deduplicate while preserving order
+            seen = set()
+            unique = []
+            for s in collected:
+                stripped = re.sub(r'\s+', ' ', html.unescape(s)).strip()
+                if stripped not in seen and len(stripped) > 40:
+                    seen.add(stripped)
+                    unique.append(stripped)
+
+            full_text = ' '.join(unique)
+            return full_text if len(full_text) >= 400 else None
+        except Exception:
+            return None
+
     def get_full_content(self, url, timeout=None):
         try:
             if timeout is None:
@@ -639,17 +688,35 @@ class NewsService:
             response = self.session.get(url, headers=headers, timeout=timeout)
             if response.status_code != 200:
                 return None
-            
+
+            html_text = response.text
+
+            # Strategy 1: newspaper3k standard extraction
             article = Article(url, config=self.config)
-            article.set_html(response.text)
+            article.set_html(html_text)
             article.parse()
-            
             text = article.text.strip()
-            if not text or len(text) < 400:
-                return None
-            
-            return text
-        except Exception as e:
+            if text and len(text) >= 400:
+                return text
+
+            # Strategy 2: __NEXT_DATA__ JSON extraction (BBC, Reuters, Vox, etc.)
+            next_data_text = self._extract_next_data_text(html_text)
+            if next_data_text:
+                return next_data_text
+
+            # Strategy 3: Extract all <p> tags as fallback
+            paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', html_text, re.DOTALL | re.IGNORECASE)
+            p_text = ' '.join(
+                re.sub(r'<[^>]+>', '', p).strip()
+                for p in paragraphs
+                if len(re.sub(r'<[^>]+>', '', p).strip()) > 40
+            )
+            p_text = html.unescape(p_text).strip()
+            if len(p_text) >= 400:
+                return p_text
+
+            return None
+        except Exception:
             return None
 
     def load_local_summarizer(self):
