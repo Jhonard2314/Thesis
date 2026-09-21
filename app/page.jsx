@@ -1,169 +1,290 @@
 'use client';
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import NewsCard from './components/NewsCard';
+import CategoryFilter from './components/CategoryFilter';
+import LoadingSkeleton from './components/LoadingSkeleton';
+import BiasModal from './components/BiasModal';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const isUrl = (str) => {
   try { new URL(str); return str.startsWith('http'); } catch { return false; }
 };
-const getBiasColor  = (l) => ({ Low:'text-green-600', Medium:'text-yellow-600', High:'text-red-600' }[l] ?? 'text-gray-600');
-const getBiasBg     = (l) => ({ Low:'bg-green-50',    Medium:'bg-yellow-50',    High:'bg-red-50'    }[l] ?? 'bg-gray-50');
-const getBiasBadge  = (l) => ({ Low:'bg-green-100 text-green-800', Medium:'bg-yellow-100 text-yellow-800', High:'bg-red-100 text-red-800' }[l] ?? 'bg-gray-100 text-gray-800');
+const getBiasColor = (l) => ({ Low: 'text-green-600', Medium: 'text-yellow-600', High: 'text-red-600' }[l] ?? 'text-gray-600');
+const getBiasBg    = (l) => ({ Low: 'bg-green-50',    Medium: 'bg-yellow-50',    High: 'bg-red-50'    }[l] ?? 'bg-gray-50');
+const getBiasBadge = (l) => ({ Low: 'bg-green-100 text-green-800', Medium: 'bg-yellow-100 text-yellow-800', High: 'bg-red-100 text-red-800' }[l] ?? 'bg-gray-100 text-gray-800');
 
-// ── main component ────────────────────────────────────────────────────────────
+// ── main ──────────────────────────────────────────────────────────────────────
 export default function Home() {
-  // input state
-  const [input, setInput]           = useState('');       // URL or text in main bar
-  const [pastedText, setPastedText] = useState('');       // article text when URL fails
-  const [savedUrl, setSavedUrl]     = useState('');       // remember the URL that failed
 
-  // flow stages: idle | extracting | needs_text | analyzing | done | error
-  const [stage, setStage]           = useState('idle');
-  const [summaryData, setSummaryData] = useState(null);
-  const [biasData, setBiasData]     = useState(null);
-  const [errorMsg, setErrorMsg]     = useState('');
-
-  // dark mode
+  // ── dark mode ──────────────────────────────────────────────────────────────
   const [dark, setDark] = useState(false);
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
   }, [dark]);
 
-  const inputRef      = useRef(null);
-  const pasteRef      = useRef(null);
-  const resultsRef    = useRef(null);
+  // ── analyzer state ─────────────────────────────────────────────────────────
+  const [input, setInput]           = useState('');
+  const [pastedText, setPastedText] = useState('');
+  const [savedUrl, setSavedUrl]     = useState('');
+  // stages: idle | extracting | needs_text | analyzing | done | error
+  const [stage, setStage]           = useState('idle');
+  const [summaryData, setSummaryData] = useState(null);
+  const [biasData, setBiasData]     = useState(null);
+  const [analyzerError, setAnalyzerError] = useState('');
 
-  // ── reset everything ──────────────────────────────────────────────────────
-  const reset = () => {
+  // ── gallery state ──────────────────────────────────────────────────────────
+  const [articles, setArticles]         = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
+  const [galleryError, setGalleryError] = useState(null);
+  const [activeCategory, setActiveCategory] = useState('general');
+  const [searchQuery, setSearchQuery]   = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState('');
+
+  // ── gallery modal state ────────────────────────────────────────────────────
+  const [modalOpen, setModalOpen]         = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState(null);
+  const [modalBiasData, setModalBiasData] = useState(null);
+  const [modalLoading, setModalLoading]   = useState(false);
+  const [modalLoadingStage, setModalLoadingStage] = useState('extracting');
+  const [modalError, setModalError]       = useState(null);
+
+  // ── refs ───────────────────────────────────────────────────────────────────
+  const inputRef   = useRef(null);
+  const pasteRef   = useRef(null);
+  const resultsRef = useRef(null);
+  const galleryRef = useRef(null);
+
+  // ── theme classes ──────────────────────────────────────────────────────────
+  const bg       = dark ? 'bg-gray-950 text-gray-100'   : 'bg-white text-gray-800';
+  const card     = dark ? 'bg-gray-900 border-gray-700'  : 'bg-white border-gray-200';
+  const inputCls = dark
+    ? 'border-gray-600 bg-gray-900 focus-within:border-blue-400'
+    : 'border-gray-300 bg-white hover:shadow-md focus-within:border-blue-400';
+  const muted    = dark ? 'text-gray-400' : 'text-gray-500';
+  const btnBase  = dark
+    ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border-gray-600'
+    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200';
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GALLERY LOGIC
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const fetchGallery = useCallback(async (query = '') => {
+    setGalleryLoading(true);
+    setGalleryError(null);
+    try {
+      const params = new URLSearchParams();
+      if (query) params.append('query', query);
+      else       params.append('category', activeCategory);
+      const r = await fetch(`/api/news?${params}`);
+      const text = await r.text();
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.substring(0, 200)}`); }
+      if (!r.ok) throw new Error(data.error || 'Failed to fetch news');
+      setArticles(data.articles || []);
+      setSearchQuery(query);
+    } catch (err) {
+      setGalleryError(err.message);
+      setArticles([]);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, [activeCategory]);
+
+  useEffect(() => { fetchGallery(); }, [activeCategory]);
+
+  const handleCategoryChange = (cat) => {
+    setActiveCategory(cat);
+    setSearchQuery('');
+    setSubmittedQuery('');
+  };
+
+  const handleGallerySearch = (q) => fetchGallery(q);
+
+  // Card click → open modal + auto-run summary then bias
+  const handleCardClick = async (article) => {
+    setSelectedArticle(article);
+    setModalOpen(true);
+    setModalLoading(true);
+    setModalLoadingStage('extracting');
+    setModalError(null);
+    setModalBiasData(null);
+
+    try {
+      // Step 1: summary — use cached scraped_content if available (always present for gallery)
+      const r1 = await fetch('/api/bias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: article.url,
+          content: article.scraped_content || undefined,
+          snippet: article.description || '',
+          action: 'get_summary',
+        }),
+      });
+      const d1 = await r1.json();
+      if (d1.error) { setModalError(d1.error); setModalLoading(false); return; }
+      setModalBiasData(d1);
+
+      // Step 2: bias analysis
+      setModalLoadingStage('analyzing');
+      const r2 = await fetch('/api/bias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: article.url,
+          content: d1.full_content || article.scraped_content || undefined,
+          snippet: article.description || '',
+          action: 'analyze_bias',
+        }),
+      });
+      const d2 = await r2.json();
+      if (d2.error) { setModalError(d2.error); setModalLoading(false); return; }
+      setModalBiasData(prev => ({ ...prev, ...d2 }));
+    } catch (e) {
+      setModalError(e.message || 'Network error');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleRunBiasAnalysis = async () => {
+    if (!selectedArticle) return;
+    setModalLoading(true);
+    setModalLoadingStage('analyzing');
+    setModalError(null);
+    try {
+      const r = await fetch('/api/bias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: selectedArticle.url,
+          content: modalBiasData?.full_content || selectedArticle.scraped_content || undefined,
+          snippet: selectedArticle.description || '',
+          action: 'analyze_bias',
+        }),
+      });
+      const d = await r.json();
+      if (d.error) { setModalError(d.error); return; }
+      setModalBiasData(prev => ({ ...prev, ...d }));
+    } catch (e) {
+      setModalError(e.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setSelectedArticle(null);
+    setModalBiasData(null);
+    setModalError(null);
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ANALYZER LOGIC
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const resetAnalyzer = () => {
     setInput(''); setPastedText(''); setSavedUrl('');
     setStage('idle');
-    setSummaryData(null); setBiasData(null); setErrorMsg('');
+    setSummaryData(null); setBiasData(null); setAnalyzerError('');
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  // ── run summarise + bias on already-retrieved content ────────────────────
   const runAnalysis = async (content, url = null) => {
     setStage('analyzing');
     setSummaryData(null); setBiasData(null);
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-
     try {
-      // Step 1 — summarise
-      const body1 = { content, action: 'get_summary', ...(url ? { url } : {}) };
       const r1 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body1),
+        body: JSON.stringify({ content, action: 'get_summary', ...(url ? { url } : {}) }),
       });
       const d1 = await r1.json();
-      if (d1.error) { setErrorMsg(d1.error); setStage('error'); return; }
+      if (d1.error) { setAnalyzerError(d1.error); setStage('error'); return; }
       setSummaryData(d1);
 
-      // Step 2 — bias
-      const body2 = { content: d1.full_content || content, action: 'analyze_bias', ...(url ? { url } : {}) };
+      setStage('analyzing');
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body2),
+        body: JSON.stringify({ content: d1.full_content || content, action: 'analyze_bias', ...(url ? { url } : {}) }),
       });
       const d2 = await r2.json();
-      if (d2.error) { setErrorMsg(d2.error); setStage('error'); return; }
+      if (d2.error) { setAnalyzerError(d2.error); setStage('error'); return; }
       setBiasData(d2);
       setStage('done');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (e) {
-      setErrorMsg(e.message || 'Network error'); setStage('error');
+      setAnalyzerError(e.message || 'Network error'); setStage('error');
     }
   };
 
-  // ── main analyze — handles URL vs plain text ──────────────────────────────
   const analyze = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+    if (!isUrl(trimmed)) { await runAnalysis(trimmed); return; }
 
-    // Plain text paste — skip scraping entirely
-    if (!isUrl(trimmed)) {
-      await runAnalysis(trimmed);
-      return;
-    }
-
-    // URL path — try to scrape first
     setStage('extracting');
-    setSummaryData(null); setBiasData(null); setErrorMsg('');
-
+    setSummaryData(null); setBiasData(null); setAnalyzerError('');
     try {
       const r = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed, action: 'get_summary' }),
       });
       const d = await r.json();
-
       if (d.error) {
-        // Scraping failed → switch to paste-text prompt
         setSavedUrl(trimmed);
         setStage('needs_text');
         setTimeout(() => pasteRef.current?.focus(), 100);
         return;
       }
-
-      // Scraping succeeded — continue with bias
       setSummaryData(d);
       setStage('analyzing');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed, content: d.full_content, action: 'analyze_bias' }),
       });
       const d2 = await r2.json();
-      if (d2.error) { setErrorMsg(d2.error); setStage('error'); return; }
+      if (d2.error) { setAnalyzerError(d2.error); setStage('error'); return; }
       setBiasData(d2);
       setStage('done');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (e) {
-      setErrorMsg(e.message || 'Network error'); setStage('error');
+      setAnalyzerError(e.message || 'Network error'); setStage('error');
     }
   };
 
-  // ── submit pasted article text ────────────────────────────────────────────
   const submitPasted = async () => {
     const trimmed = pastedText.trim();
     if (!trimmed) return;
     await runAnalysis(trimmed, savedUrl || null);
   };
 
-  const handleKey     = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); analyze(); } };
-  const loading       = stage === 'extracting' || stage === 'analyzing';
+  const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); analyze(); } };
+  const analyzerLoading = stage === 'extracting' || stage === 'analyzing';
 
-  // ── theme classes ─────────────────────────────────────────────────────────
-  const bg        = dark ? 'bg-gray-950 text-gray-100'  : 'bg-white text-gray-800';
-  const card      = dark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200';
-  const inputCls  = dark
-    ? 'border-gray-600 bg-gray-900 hover:border-gray-500 focus-within:border-blue-400'
-    : 'border-gray-300 bg-white hover:shadow-md focus-within:border-blue-400';
-  const mutedText = dark ? 'text-gray-400' : 'text-gray-500';
-  const btnBase   = dark
-    ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border-gray-600'
-    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200';
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════════════
 
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${bg}`}>
 
-      {/* ── Dark mode toggle ──────────────────────────────────────────────── */}
-      <div className="absolute top-4 right-4 z-10">
-        <button
-          onClick={() => setDark(d => !d)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${btnBase}`}
-          title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {dark ? (
-            <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/></svg>Light</>
-          ) : (
-            <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>Dark</>
-          )}
+      {/* ── Dark mode toggle ─────────────────────────────────────────────── */}
+      <div className="absolute top-4 right-4 z-20">
+        <button onClick={() => setDark(d => !d)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${btnBase}`}>
+          {dark
+            ? <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/></svg>Light</>
+            : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>Dark</>
+          }
         </button>
       </div>
 
-      {/* ── Logo + input area ────────────────────────────────────────────── */}
-      <div className={`flex flex-col items-center justify-center transition-all duration-500 ${stage === 'idle' ? 'flex-1' : 'pt-10 pb-6'}`}>
+      {/* ════════════════════════════════════════════════════════════════════
+          SECTION 1 — ANALYZER
+      ════════════════════════════════════════════════════════════════════ */}
+      <div className={`flex flex-col items-center justify-center transition-all duration-500 ${stage === 'idle' ? 'py-16' : 'pt-10 pb-6'}`}>
 
         {/* Logo */}
         <div className="mb-6 text-center select-none">
@@ -173,23 +294,21 @@ export default function Home() {
             <span className="text-green-500">A</span><span className="text-red-500">p</span>
             <span className="text-blue-600">e</span><span className="text-yellow-500">x</span>
           </h1>
-          <p className={`text-sm mt-1 font-medium ${mutedText}`}>Media Bias Analyzer · Powered by BERT-BABE</p>
+          <p className={`text-sm mt-1 font-medium ${muted}`}>Media Bias Analyzer · Powered by BERT-BABE</p>
         </div>
 
-        {/* ── URL / text input bar ─────────────────────────────────────── */}
+        {/* Input bar */}
         <div className="w-full max-w-2xl px-4">
           <div className={`flex items-start gap-2 border rounded-2xl shadow-sm transition-all px-4 py-3 ${inputCls}`}>
-            {/* icon: link or text depending on input */}
             {isUrl(input) ? (
-              <svg className={`w-5 h-5 mt-1 shrink-0 ${mutedText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`w-5 h-5 mt-1 shrink-0 ${muted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
               </svg>
             ) : (
-              <svg className={`w-5 h-5 mt-1 shrink-0 ${mutedText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`w-5 h-5 mt-1 shrink-0 ${muted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             )}
-
             <textarea
               ref={inputRef}
               value={input}
@@ -197,12 +316,11 @@ export default function Home() {
               onKeyDown={handleKey}
               rows={input.length > 120 ? 4 : 1}
               placeholder="Paste a URL or article text to analyze…"
-              disabled={loading || stage === 'needs_text'}
+              disabled={analyzerLoading || stage === 'needs_text'}
               className={`flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder-gray-400 disabled:opacity-50 ${dark ? 'text-gray-100' : 'text-gray-800'}`}
             />
-
-            {input && !loading && stage !== 'needs_text' && (
-              <button onClick={reset} className={`mt-1 shrink-0 ${mutedText} hover:text-gray-600`} title="Clear">
+            {input && !analyzerLoading && stage !== 'needs_text' && (
+              <button onClick={resetAnalyzer} className={`mt-1 shrink-0 ${muted} hover:text-gray-600`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -210,46 +328,42 @@ export default function Home() {
             )}
           </div>
 
-          {/* Buttons */}
           <div className="flex items-center justify-center gap-3 mt-4">
-            <button
-              onClick={analyze}
-              disabled={!input.trim() || loading || stage === 'needs_text'}
-              className={`px-6 py-2.5 text-sm font-medium rounded-lg border disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${btnBase}`}
-            >
-              {loading ? (
+            <button onClick={analyze}
+              disabled={!input.trim() || analyzerLoading || stage === 'needs_text'}
+              className={`px-6 py-2.5 text-sm font-medium rounded-lg border disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${btnBase}`}>
+              {analyzerLoading ? (
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                   </svg>
-                  {stage === 'extracting' ? 'Fetching article…' : 'Analyzing…'}
+                  {stage === 'extracting' ? 'Fetching…' : 'Analyzing…'}
                 </span>
               ) : 'Analyze Article'}
             </button>
             {stage !== 'idle' && (
-              <button onClick={reset} className={`px-6 py-2.5 text-sm font-medium rounded-lg border transition-colors ${btnBase}`}>
+              <button onClick={resetAnalyzer} className={`px-6 py-2.5 text-sm font-medium rounded-lg border transition-colors ${btnBase}`}>
                 New Analysis
               </button>
             )}
           </div>
 
           {stage === 'idle' && (
-            <p className={`text-center text-xs mt-4 ${mutedText}`}>
+            <p className={`text-center text-xs mt-4 ${muted}`}>
               Paste a news article URL <span className="mx-1 opacity-40">·</span> or paste the article text directly
             </p>
           )}
         </div>
       </div>
 
-      {/* ── Results / Paste-text area ────────────────────────────────────── */}
+      {/* ── Analyzer results ─────────────────────────────────────────────── */}
       {stage !== 'idle' && (
-        <div ref={resultsRef} className="w-full max-w-6xl mx-auto px-4 pb-16">
+        <div ref={resultsRef} className="w-full max-w-6xl mx-auto px-4 pb-10">
 
-          {/* ── needs_text: scraping failed, ask user to paste ─────────── */}
+          {/* needs_text prompt */}
           {stage === 'needs_text' && (
             <div className={`rounded-2xl border shadow-sm p-6 max-w-2xl mx-auto ${card}`}>
-              {/* Header */}
               <div className="flex items-start gap-3 mb-5">
                 <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
                   <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -257,29 +371,19 @@ export default function Home() {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-bold text-sm">Couldn't access this article automatically</p>
-                  <p className={`text-xs mt-0.5 ${mutedText}`}>
-                    This site restricts automated access.
-                    Open the article, select all text, copy it, and paste it below.
-                  </p>
+                  <p className={`font-bold text-sm ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Couldn't access this article automatically</p>
+                  <p className={`text-xs mt-0.5 ${muted}`}>Open the article, select all text, copy it, and paste it below.</p>
                 </div>
               </div>
-
-              {/* Original URL pill */}
               {savedUrl && (
                 <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-xs border ${dark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-                  <svg className={`w-3.5 h-3.5 shrink-0 ${mutedText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className={`w-3.5 h-3.5 shrink-0 ${muted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
                   </svg>
-                  <span className={`truncate ${mutedText}`}>{savedUrl}</span>
-                  <a href={savedUrl} target="_blank" rel="noopener noreferrer"
-                    className="ml-auto text-blue-500 hover:text-blue-600 shrink-0 font-medium">
-                    Open ↗
-                  </a>
+                  <span className={`truncate ${muted}`}>{savedUrl}</span>
+                  <a href={savedUrl} target="_blank" rel="noopener noreferrer" className="ml-auto text-blue-500 hover:text-blue-600 shrink-0 font-medium">Open ↗</a>
                 </div>
               )}
-
-              {/* Paste area */}
               <textarea
                 ref={pasteRef}
                 value={pastedText}
@@ -288,56 +392,43 @@ export default function Home() {
                 rows={8}
                 placeholder="Paste the full article text here…"
                 className={`w-full rounded-xl border text-sm leading-relaxed p-4 outline-none resize-none transition-colors
-                  ${dark
-                    ? 'bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-500 focus:border-blue-400'
-                    : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-blue-400 focus:bg-white'}`}
+                  ${dark ? 'bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-500 focus:border-blue-400'
+                         : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-blue-400 focus:bg-white'}`}
               />
-
-              {/* Word count */}
               {pastedText.trim() && (
-                <p className={`text-xs mt-1.5 ${mutedText}`}>
-                  {pastedText.trim().split(/\s+/).length} words
-                </p>
+                <p className={`text-xs mt-1.5 ${muted}`}>{pastedText.trim().split(/\s+/).length} words</p>
               )}
-
-              {/* Actions */}
               <div className="flex gap-3 mt-4">
-                <button
-                  onClick={submitPasted}
+                <button onClick={submitPasted}
                   disabled={pastedText.trim().split(/\s+/).length < 30}
-                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-                >
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors">
                   Analyze Pasted Text
                 </button>
-                <button onClick={reset}
+                <button onClick={resetAnalyzer}
                   className={`px-5 py-2.5 text-sm font-medium rounded-xl border transition-colors ${btnBase}`}>
                   Cancel
                 </button>
               </div>
-
               {pastedText.trim().split(/\s+/).length < 30 && pastedText.trim().length > 0 && (
-                <p className={`text-xs text-center mt-2 ${mutedText}`}>Need at least 30 words for a meaningful analysis.</p>
+                <p className={`text-xs text-center mt-2 ${muted}`}>Need at least 30 words for a meaningful analysis.</p>
               )}
             </div>
           )}
 
-          {/* ── error ─────────────────────────────────────────────────── */}
+          {/* error */}
           {stage === 'error' && (
             <div className={`rounded-2xl border p-6 text-center max-w-lg mx-auto ${dark ? 'bg-red-950 border-red-800' : 'bg-red-50 border-red-200'}`}>
               <p className="text-red-500 font-bold mb-1">Analysis Failed</p>
-              <p className="text-red-400 text-sm mb-4">{errorMsg}</p>
-              <div className="flex gap-3 justify-center">
-                <button onClick={reset}
-                  className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors">
-                  Try Again
-                </button>
-              </div>
+              <p className="text-red-400 text-sm mb-4">{analyzerError}</p>
+              <button onClick={resetAnalyzer} className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors">
+                Try Again
+              </button>
             </div>
           )}
 
-          {/* ── loading (extracting / analyzing before summary arrives) ── */}
-          {loading && !summaryData && stage !== 'needs_text' && (
-            <div className={`flex flex-col items-center py-16 ${mutedText}`}>
+          {/* loading spinner */}
+          {analyzerLoading && !summaryData && (
+            <div className={`flex flex-col items-center py-16 ${muted}`}>
               <div className="w-10 h-10 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-4"/>
               <p className="text-sm font-medium">
                 {stage === 'extracting' ? 'Fetching article content…' : 'Running analysis…'}
@@ -345,18 +436,16 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── results ───────────────────────────────────────────────── */}
+          {/* results split panel */}
           {summaryData && (
             <div className="flex gap-6 mt-2">
-
-              {/* Left panel */}
+              {/* Left */}
               <div className="w-72 shrink-0 space-y-4">
-
                 <div className={`rounded-xl border shadow-sm p-5 ${card}`}>
-                  <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${mutedText}`}>Executive Summary</h4>
+                  <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${muted}`}>Executive Summary</h4>
                   {summaryData.summary
                     ? <p className={`text-sm leading-relaxed italic ${dark ? 'text-gray-300' : 'text-gray-700'}`}>"{summaryData.summary}"</p>
-                    : <p className={`text-sm italic ${mutedText}`}>Summary unavailable.</p>}
+                    : <p className={`text-sm italic ${muted}`}>Summary unavailable.</p>}
                 </div>
 
                 {(stage === 'analyzing' || stage === 'done') && (
@@ -370,29 +459,29 @@ export default function Home() {
                     ) : (
                       <div className="flex flex-col items-center py-4">
                         <div className="w-8 h-8 border-4 border-gray-300 border-t-red-500 rounded-full animate-spin mb-3"/>
-                        <p className={`text-xs font-medium uppercase tracking-widest animate-pulse ${mutedText}`}>Analyzing…</p>
+                        <p className={`text-xs font-medium uppercase tracking-widest animate-pulse ${muted}`}>Analyzing…</p>
                       </div>
                     )}
                   </div>
                 )}
 
                 <div className={`rounded-xl border shadow-sm p-4 ${card}`}>
-                  <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${mutedText}`}>Bias Grading Scale</h4>
+                  <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${muted}`}>Bias Grading Scale</h4>
                   <div className="w-full h-2 rounded-full overflow-hidden flex mb-3">
                     <div className="bg-green-400 h-full w-1/2"/>
                     <div className="bg-yellow-400 h-full w-[20%]"/>
                     <div className="bg-red-500 h-full w-[30%]"/>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-600 font-bold">0% – 50%</span><span className={`italic ${mutedText}`}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-600 font-bold">51% – 70%</span><span className={`italic ${mutedText}`}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-600 font-bold">71% – 100%</span><span className={`italic ${mutedText}`}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-600 font-bold">0% – 50%</span><span className={`italic ${muted}`}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-600 font-bold">51% – 70%</span><span className={`italic ${muted}`}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-600 font-bold">71% – 100%</span><span className={`italic ${muted}`}>Strongly Biased</span></div>
                   </div>
                 </div>
 
                 {biasData?.top_words?.length > 0 && biasData.bias_level !== 'Low' && (
                   <div className={`rounded-xl border shadow-sm p-4 ${card}`}>
-                    <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${mutedText}`}>Key Biased Markers</h4>
+                    <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${muted}`}>Key Biased Markers</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {biasData.top_words.map((item, idx) => (
                         <div key={idx} className={`border rounded-lg px-2.5 py-1.5 flex items-center gap-2 shadow-sm ${dark ? 'bg-gray-800 border-red-900' : 'bg-white border-red-100'}`}>
@@ -412,18 +501,17 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Right panel */}
+              {/* Right */}
               <div className={`flex-1 rounded-xl border shadow-sm p-6 min-h-[400px] ${card}`}>
-                <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-5 ${mutedText}`}>Full Article Context</h4>
-
+                <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-5 ${muted}`}>Full Article Context</h4>
                 {!biasData?.sentence_breakdown ? (
                   <div className="space-y-3">
                     {(summaryData?.full_content || '').split('\n').filter(Boolean).map((para, i) => (
-                      <p key={i} className={`text-sm leading-relaxed ${mutedText}`}>{para}</p>
+                      <p key={i} className={`text-sm leading-relaxed ${muted}`}>{para}</p>
                     ))}
                     {stage === 'analyzing' && (
                       <div className={`mt-6 rounded-xl p-6 text-center border-2 border-dashed ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
-                        <p className={`text-sm italic ${mutedText}`}>Bias highlighting will appear here after analysis…</p>
+                        <p className={`text-sm italic ${muted}`}>Bias highlighting will appear here after analysis…</p>
                       </div>
                     )}
                   </div>
@@ -433,12 +521,9 @@ export default function Home() {
                       const biased = s.label === 'Biased';
                       return (
                         <span key={idx}
-                          className={`inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors
-                            ${biased
-                              ? 'bg-red-100/80 border-b-2 border-red-300 hover:bg-red-200 text-gray-900'
-                              : 'bg-green-100/60 border-b-2 border-green-200 hover:bg-green-200 text-gray-900'}`}
-                          title={`${s.label}: ${s.score}%`}
-                        >
+                          className={`inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors text-gray-900
+                            ${biased ? 'bg-red-100/80 border-b-2 border-red-300 hover:bg-red-200' : 'bg-green-100/60 border-b-2 border-green-200 hover:bg-green-200'}`}
+                          title={`${s.label}: ${s.score}%`}>
                           {s.text}{' '}
                           <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal">
                             {s.label}: {s.score}%
@@ -450,11 +535,121 @@ export default function Home() {
                   </div>
                 )}
               </div>
-
             </div>
           )}
         </div>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          DIVIDER
+      ════════════════════════════════════════════════════════════════════ */}
+      <div className={`border-t mx-8 my-2 ${dark ? 'border-gray-700' : 'border-gray-200'}`}/>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          SECTION 2 — NEWS GALLERY
+      ════════════════════════════════════════════════════════════════════ */}
+      <div ref={galleryRef} className="flex-1 max-w-7xl mx-auto w-full px-4 pb-12">
+
+        {/* Gallery header: category filter + search */}
+        <div className={`sticky top-0 z-10 py-4 flex items-center justify-between gap-4 border-b mb-6 ${dark ? 'bg-gray-950 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <CategoryFilter
+            activeCategory={searchQuery ? '' : activeCategory}
+            onCategoryChange={handleCategoryChange}
+          />
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const q = e.target.querySelector('input').value.trim();
+            if (!q) return;
+            setSubmittedQuery(q);
+            setActiveCategory('');
+            handleGallerySearch(q);
+          }} className="flex items-center gap-2 ml-auto">
+            <div className={`flex items-center border rounded-lg px-3 py-1.5 text-sm transition-colors ${dark ? 'bg-gray-800 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+              <input
+                type="text"
+                defaultValue={submittedQuery}
+                placeholder="Search news…"
+                className={`outline-none bg-transparent w-44 text-sm ${dark ? 'text-gray-100 placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'}`}
+              />
+              <button type="submit" className={muted}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.6-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+              </button>
+            </div>
+            {submittedQuery && (
+              <button type="button" onClick={() => { setSubmittedQuery(''); setActiveCategory('general'); fetchGallery(''); }}
+                className={`text-xs px-2 py-1.5 rounded-lg border transition-colors ${btnBase}`}>✕ Clear</button>
+            )}
+          </form>
+        </div>
+
+        {/* Search label */}
+        {submittedQuery && !galleryLoading && (
+          <p className={`text-sm mb-4 ${muted}`}>
+            Results for <span className={`font-semibold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>"{submittedQuery}"</span>
+          </p>
+        )}
+
+        {/* Gallery error */}
+        {galleryError && (
+          <div className="text-center py-12">
+            <p className="text-red-500 font-semibold mb-2">Unable to load news</p>
+            <p className={`text-sm mb-4 ${muted}`}>{galleryError}</p>
+            <button onClick={() => fetchGallery(searchQuery)}
+              className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {galleryLoading && <LoadingSkeleton />}
+
+        {/* Cards grid */}
+        {!galleryLoading && articles.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {articles.map((article, i) => (
+              <NewsCard key={`${article.url}-${i}`} article={article} onArticleClick={handleCardClick} />
+            ))}
+          </div>
+        )}
+
+        {/* No results */}
+        {!galleryLoading && articles.length === 0 && !galleryError && (
+          <div className="text-center py-16">
+            <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {submittedQuery ? (
+              <>
+                <h3 className={`text-base font-semibold mb-1 ${dark ? 'text-gray-100' : 'text-gray-800'}`}>
+                  No results for <span className="text-blue-500">"{submittedQuery}"</span>
+                </h3>
+                <p className={`text-sm mb-5 ${muted}`}>No scannable articles matched your search. Try different keywords.</p>
+                <button onClick={() => { setSubmittedQuery(''); setActiveCategory('general'); fetchGallery(''); }}
+                  className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                  Back to General News
+                </button>
+              </>
+            ) : (
+              <p className={`text-sm ${muted}`}>No articles found. Try a different category.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Gallery BiasModal ─────────────────────────────────────────────── */}
+      <BiasModal
+        isOpen={modalOpen}
+        onClose={closeModal}
+        article={selectedArticle}
+        biasData={modalBiasData}
+        isLoading={modalLoading}
+        loadingStage={modalLoadingStage}
+        error={modalError}
+        onRunBiasAnalysis={handleRunBiasAnalysis}
+      />
     </div>
   );
 }
