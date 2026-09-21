@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "NewsApex — Bias Assessment of English News Articles",
+  title: "Fine-Tuned Transformer-Based System for Bias Assessment and Summarization of English News Articles",
   description: "Sentence-level bias assessment and summarization of English news articles using BERT and BART-large-CNN models",
 };
 
