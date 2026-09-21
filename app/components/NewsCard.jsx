@@ -60,10 +60,7 @@ export default function NewsCard({ article, onArticleClick }) {
             </div>
           )}
 
-          {/* Guaranteed full-scan badge — all gallery articles have cached content */}
-          <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200">
-            ✓ Scannable
-          </span>
+          {/* Guaranteed full-scan — no badge needed, all gallery articles have cached content */}
         </div>
 
         {/* Content */}
