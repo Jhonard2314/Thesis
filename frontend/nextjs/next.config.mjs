@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// v3 — combined analyzer + gallery
 const nextConfig = {
   eslint: {
     // Warning: This allows production builds to successfully complete even if
