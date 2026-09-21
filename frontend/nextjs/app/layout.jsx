@@ -12,7 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  description: "Stay informed with the latest news from around the world",
+  title: "NewsApex — Media Bias Analyzer",
+  description: "Analyze media bias in news articles using BERT-BABE linguistic analysis",
 };
 
 export default function RootLayout({ children }) {
