@@ -12,16 +12,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "NewsApex — Media Bias Analyzer",
-  description: "Analyze media bias in news articles using BERT-BABE linguistic analysis",
+  title: "NewsApex — Bias Assessment of English News Articles",
+  description: "Sentence-level bias assessment and summarization of English news articles using BERT and BART-large-CNN models",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{ background: '#0B1628', color: '#FFFFFF' }}>
         {children}
       </body>
     </html>
