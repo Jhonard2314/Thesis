@@ -2,36 +2,32 @@
 
 export default function CategoryFilter({ activeCategory, onCategoryChange }) {
   const categories = [
-    { id: 'general', name: 'General'},
-    { id: 'business', name: 'Business',},
-    { id: 'technology', name: 'Technology'},
-    { id: 'entertainment', name: 'Entertainment'},
-    { id: 'health', name: 'Health'},
-    { id: 'science', name: 'Science'},
-    { id: 'sports', name: 'Sports'},
+    { id: 'general',       name: 'General' },
+    { id: 'business',      name: 'Business' },
+    { id: 'technology',    name: 'Technology' },
+    { id: 'entertainment', name: 'Entertainment' },
+    { id: 'health',        name: 'Health' },
+    { id: 'science',       name: 'Science' },
+    { id: 'sports',        name: 'Sports' },
   ];
 
   return (
-    <nav className="ml-10 mr-4" aria-label="Categories">
-      <ol className="flex items-center justify-center text-sm text-gray-600">
-        {categories.map((category, idx) => {
-          const isActive = activeCategory === category.id;
+    <nav aria-label="Categories">
+      <ol className="flex items-center flex-wrap gap-1 text-sm">
+        {categories.map((cat) => {
+          const isActive = activeCategory === cat.id;
           return (
-            <li key={category.id} className="flex items-center">
+            <li key={cat.id}>
               <button
-                onClick={() => onCategoryChange(category.id)}
-                className={`px-1 py-1 transition-all focus:outline-none ${
+                onClick={() => onCategoryChange(cat.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all focus:outline-none border ${
                   isActive
-                    ? 'text-blue-600 border-b-2 border-blue-600 font-semibold'
-                    : 'hover:text-blue-600 hover:border-b-2 hover:border-blue-600 border-b-2 border-transparent'
+                    ? 'bg-teal-500 border-teal-500 text-white'
+                    : 'border-slate-600 text-slate-300 hover:border-teal-500 hover:text-teal-400'
                 }`}
               >
-                <span>{category.name}</span>
+                {cat.name}
               </button>
-
-              {idx < categories.length - 1 && (
-                <span className="mx-3 text-gray-400 select-none">›</span>
-              )}
             </li>
           );
         })}

@@ -1,18 +1,18 @@
 export default function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[...Array(6)].map((_, index) => (
-        <div key={index} className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
-          <div className="w-full h-48 bg-gray-300"></div>
-          <div className="p-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="h-4 bg-gray-300 rounded w-24"></div>
-              <div className="h-3 bg-gray-300 rounded w-20"></div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="rounded-xl overflow-hidden animate-pulse" style={{ background: '#112240' }}>
+          <div className="w-full h-44" style={{ background: '#1A2D4A' }}/>
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between">
+              <div className="h-3 rounded w-24" style={{ background: '#1E3A5F' }}/>
+              <div className="h-3 rounded w-16" style={{ background: '#1E3A5F' }}/>
             </div>
-            <div className="h-6 bg-gray-300 rounded w-full mb-2"></div>
-            <div className="h-6 bg-gray-300 rounded w-3/4 mb-3"></div>
-            <div className="h-4 bg-gray-300 rounded w-full mb-2"></div>
-            <div className="h-4 bg-gray-300 rounded w-5/6"></div>
+            <div className="h-4 rounded w-full"  style={{ background: '#1E3A5F' }}/>
+            <div className="h-4 rounded w-3/4"   style={{ background: '#1E3A5F' }}/>
+            <div className="h-3 rounded w-full"  style={{ background: '#1E3A5F' }}/>
+            <div className="h-3 rounded w-5/6"   style={{ background: '#1E3A5F' }}/>
           </div>
         </div>
       ))}
