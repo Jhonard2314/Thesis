@@ -442,7 +442,7 @@ class NewsService:
             print("Guardian: API key missing or placeholder, skipping.", file=sys.stderr)
             return []
         url = "https://content.guardianapis.com/search"
-        params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText", "page-size": 50}
+        params = {"api-key": self.guardian_api_key, "show-fields": "thumbnail,trailText", "page-size": 30}
         if query:
             # Wrap multi-word queries in quotes for exact phrase matching
             params["q"] = f'"{query}"' if ' ' in query.strip() else query
@@ -579,66 +579,32 @@ class NewsService:
         return fully_scraped
 
     def fetch_all_news(self, query=None, category=None, language="en"):
-        all_articles = []
+        """Gallery uses Guardian only — reliable scraping, full English content guaranteed."""
         try:
-            all_articles.extend(self.fetch_mediastack(query, category, language))
-        except Exception as e:
-            print(f"Mediastack error: {e}", file=sys.stderr)
-
-        try:
-            all_articles.extend(self.fetch_newsdata(query, category, language))
-        except Exception as e:
-            print(f"NewsData error: {e}", file=sys.stderr)
-            
-        try:
-            all_articles.extend(self.fetch_guardian(query, category))
+            articles = self.fetch_guardian(query, category)
         except Exception as e:
             print(f"Guardian error: {e}", file=sys.stderr)
+            articles = []
 
-        # ── Filter non-English articles ──────────────────────────────────────
-        # Detect non-Latin characters or known non-English patterns in title
-        def _is_english(article):
-            title = article.get("title") or ""
-            snippet = article.get("snippet") or ""
-            text = (title + " " + snippet).strip()
-            # Reject if more than 15% of word characters are non-ASCII
-            word_chars = [c for c in text if c.isalpha()]
-            if not word_chars:
-                return True
-            non_ascii = sum(1 for c in word_chars if ord(c) > 127)
-            return (non_ascii / len(word_chars)) < 0.15
-
-        all_articles = [a for a in all_articles if _is_english(a)]
-
-        # ── Cap per-source to max 8 to avoid any single source dominating ───
-        source_counts = {}
-        capped = []
-        for article in all_articles:
-            src = (article.get("source_id") or "unknown").lower()
-            if source_counts.get(src, 0) < 8:
-                capped.append(article)
-                source_counts[src] = source_counts.get(src, 0) + 1
-        all_articles = capped
-
+        # Deduplicate by title
         unique_articles = []
         seen_titles = set()
-        for article in all_articles:
+        for article in articles:
             title = article.get("title")
             if title and title.lower() not in seen_titles:
                 unique_articles.append(article)
                 seen_titles.add(title.lower())
-        
+
         try:
             unique_articles.sort(key=lambda x: x.get('pubDate', ''), reverse=True)
         except:
             pass
 
-        # Pre-screen: filter out articles that cannot be scraped and have no useful snippet
+        # Guardian articles are always scrapable — skip expensive pre-screening,
+        # just mark them all as scrapable and cache content in parallel.
         screened = self.prescreen_articles(unique_articles)
 
-        # Search relevance filter: when a query was given, only keep articles whose
-        # title or snippet contain ALL of the significant query words (AND logic).
-        # Returns empty list if nothing matches — frontend shows "No results" instead of misleading fallback.
+        # Search relevance filter
         if query and query.strip():
             query_words = [w.lower() for w in re.split(r'\W+', query.strip()) if len(w) >= 3]
             if query_words:
@@ -650,7 +616,6 @@ class NewsService:
                     return all(w in haystack for w in query_words)
                 screened = [a for a in screened if is_relevant(a)]
 
-        # Fall back to unscreened if all failed (shouldn't happen, but safety net)
         return screened[:30] if screened else unique_articles[:30]
 
     def _is_prose_sentence(self, text):
