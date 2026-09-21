@@ -564,15 +564,18 @@ class NewsService:
     def prescreen_articles(self, articles, max_workers=12):
         """
         Runs check_scrapable() in parallel across all articles.
-        Returns only articles where scrapable=True, up to 30.
+        Only returns articles where scraped_content is populated (full scrape succeeded).
+        This guarantees 100% accuracy — every card in the gallery has cached full article text.
+        snippet_only articles are excluded entirely.
         """
         if not articles:
             return []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             screened = list(executor.map(self.check_scrapable, articles))
-        scannable = [a for a in screened if a.get("scrapable")]
-        print(f"Prescreening: {len(scannable)}/{len(screened)} articles passed scrapability check.", file=sys.stderr)
-        return scannable
+        # Strict: only articles with actual cached scraped content pass
+        fully_scraped = [a for a in screened if a.get("scraped_content")]
+        print(f"Prescreening: {len(fully_scraped)}/{len(screened)} articles have full cached content.", file=sys.stderr)
+        return fully_scraped
 
     def fetch_all_news(self, query=None, category=None, language="en"):
         all_articles = []
