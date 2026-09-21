@@ -373,6 +373,7 @@ class NewsService:
         params = {
             "access_key": self.mediastack_api_key,
             "languages": "en",
+            "countries": "us,gb,au,ca,ie,nz",
             "limit": 50,
             "sort": "published_desc"
         }
@@ -593,6 +594,31 @@ class NewsService:
             all_articles.extend(self.fetch_guardian(query, category))
         except Exception as e:
             print(f"Guardian error: {e}", file=sys.stderr)
+
+        # ── Filter non-English articles ──────────────────────────────────────
+        # Detect non-Latin characters or known non-English patterns in title
+        def _is_english(article):
+            title = article.get("title") or ""
+            snippet = article.get("snippet") or ""
+            text = (title + " " + snippet).strip()
+            # Reject if more than 15% of word characters are non-ASCII
+            word_chars = [c for c in text if c.isalpha()]
+            if not word_chars:
+                return True
+            non_ascii = sum(1 for c in word_chars if ord(c) > 127)
+            return (non_ascii / len(word_chars)) < 0.15
+
+        all_articles = [a for a in all_articles if _is_english(a)]
+
+        # ── Cap per-source to max 8 to avoid any single source dominating ───
+        source_counts = {}
+        capped = []
+        for article in all_articles:
+            src = (article.get("source_id") or "unknown").lower()
+            if source_counts.get(src, 0) < 8:
+                capped.append(article)
+                source_counts[src] = source_counts.get(src, 0) + 1
+        all_articles = capped
 
         unique_articles = []
         seen_titles = set()

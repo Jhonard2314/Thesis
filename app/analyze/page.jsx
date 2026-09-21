@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Link from 'next/link';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -12,10 +12,6 @@ const getBiasBg    = (l) => ({ Low: 'bg-green-50',    Medium: 'bg-yellow-50',   
 const getBiasBadge = (l) => ({ Low: 'bg-green-100 text-green-800', Medium: 'bg-yellow-100 text-yellow-800', High: 'bg-red-100 text-red-800' }[l] ?? 'bg-gray-100 text-gray-800');
 
 export default function AnalyzePage() {
-
-  // ── dark mode ──────────────────────────────────────────────────────────────
-  const [dark, setDark] = useState(false);
-  useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
 
   // ── state ──────────────────────────────────────────────────────────────────
   const [input, setInput]             = useState('');
@@ -31,16 +27,13 @@ export default function AnalyzePage() {
   const pasteRef   = useRef(null);
   const resultsRef = useRef(null);
 
-  // ── theme ──────────────────────────────────────────────────────────────────
-  const bg      = dark ? 'bg-gray-950 text-gray-100'  : 'bg-white text-gray-800';
-  const card    = dark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200';
-  const inputCls = dark
-    ? 'border-gray-600 bg-gray-900 focus-within:border-blue-400'
-    : 'border-gray-300 bg-white hover:shadow-md focus-within:border-blue-400';
-  const muted   = dark ? 'text-gray-400' : 'text-gray-500';
-  const btnBase = dark
-    ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border-gray-600'
-    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200';
+  // ── theme (light only) ────────────────────────────────────────────────────
+  const dark    = false;
+  const bg      = 'bg-white text-gray-800';
+  const card    = 'bg-white border-gray-200';
+  const inputCls = 'border-gray-300 bg-white hover:shadow-md focus-within:border-blue-400';
+  const muted   = 'text-gray-500';
+  const btnBase = 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200';
 
   // ── reset ──────────────────────────────────────────────────────────────────
   const reset = () => {
@@ -138,14 +131,7 @@ export default function AnalyzePage() {
           Back to News
         </Link>
 
-        {/* Dark mode toggle */}
-        <button onClick={() => setDark(d => !d)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${btnBase}`}>
-          {dark
-            ? <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/></svg>Light</>
-            : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>Dark</>
-          }
-        </button>
+        {/* Dark mode toggle removed */}
       </header>
 
       {/* ── Logo + input ─────────────────────────────────────────────────── */}
