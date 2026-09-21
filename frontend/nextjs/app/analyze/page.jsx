@@ -103,16 +103,18 @@ export default function AnalyzePage() {
           Back to News
         </Link>
         <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#17C3B2' }}>
-          NewsApex · Article Analyzer
+          Fine-Tuned Transformer-Based System
         </span>
       </header>
 
       {/* Logo + input */}
       <div className={`flex flex-col items-center justify-center transition-all duration-500 ${stage === 'idle' ? 'flex-1' : 'pt-10 pb-6'}`}>
         <div className="mb-8 text-center select-none">
-          <h1 className="text-4xl font-black tracking-tight" style={{ color: '#17C3B2' }}>NewsApex</h1>
-          <p className="text-xs uppercase tracking-widest mt-1" style={{ color: '#8BA3C1' }}>
-            Media Bias Analyzer · Powered by BERT-BABE
+          <h1 className="text-2xl font-black tracking-tight leading-tight text-center" style={{ color: '#17C3B2' }}>
+            Fine-Tuned Transformer-Based System
+          </h1>
+          <p className="text-xs uppercase tracking-widest mt-1 text-center" style={{ color: '#8BA3C1' }}>
+            Bias Assessment and Summarization of English News Articles · Powered by BERT-BABE
           </p>
         </div>
 

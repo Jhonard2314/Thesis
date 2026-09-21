@@ -84,10 +84,10 @@ export default function Home() {
         {/* Title bar */}
         <div className="max-w-7xl mx-auto px-4 py-3 text-center" style={{ borderBottom: '1px solid #1E3A5F' }}>
           <h1 className="text-lg font-black uppercase tracking-widest" style={{ color: '#17C3B2' }}>
-            NewsApex
+            Fine-Tuned Transformer-Based System
           </h1>
           <p className="text-[10px] uppercase tracking-widest mt-0.5" style={{ color: '#8BA3C1' }}>
-            Bias Assessment of English News Articles
+            Bias Assessment and Summarization of English News Articles
           </p>
         </div>
 
