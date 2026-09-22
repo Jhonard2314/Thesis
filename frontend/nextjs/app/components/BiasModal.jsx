@@ -174,7 +174,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
 
         {/* Footer */}
         <div className="px-5 py-4 flex gap-3 shrink-0" style={{ borderTop: '1px solid #1E3A5F' }}>
-          <button onClick={() => { window.open(article?.url, '_blank', 'noopener,noreferrer'); onClose(); }}
+          <button onClick={() => { window.open(article?.url, '_blank', 'noopener,noreferrer'); }}  
             className="flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-colors"
             style={{ background: '#17C3B2', color: '#0B1628' }}>
             Visit Original Site
