@@ -12,8 +12,6 @@ export default function Home() {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [activeCategory, setActiveCategory] = useState('general');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [submittedQuery, setSubmittedQuery] = useState('');
 
   const [isModalOpen, setIsModalOpen]         = useState(false);
   const [selectedArticle, setSelectedArticle] = useState(null);
@@ -24,24 +22,22 @@ export default function Home() {
 
   useEffect(() => { fetchNews(); }, [activeCategory]);
 
-  const fetchNews = async (query = '') => {
+  const fetchNews = async () => {
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams();
-      if (query) params.append('query', query);
-      else       params.append('category', activeCategory);
+      params.append('category', activeCategory);
       const r = await fetch(`/api/news?${params}`);
       const text = await r.text();
       let data;
       try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.substring(0, 200)}`); }
       if (!r.ok) throw new Error(data.error || 'Failed to fetch news');
       setArticles(data.articles || []);
-      setSearchQuery(query);
     } catch (err) { setError(err.message); setArticles([]); }
     finally { setLoading(false); }
   };
 
-  const handleCategoryChange = (cat) => { setActiveCategory(cat); setSearchQuery(''); };
+  const handleCategoryChange = (cat) => { setActiveCategory(cat); };
 
   const handleArticleClick = async (article) => {
     setSelectedArticle(article); setIsModalOpen(true);
@@ -93,28 +89,9 @@ export default function Home() {
 
         {/* Nav bar */}
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <CategoryFilter activeCategory={!searchQuery ? activeCategory : ''} onCategoryChange={handleCategoryChange} />
+          <CategoryFilter activeCategory={activeCategory} onCategoryChange={handleCategoryChange} />
 
           <div className="ml-auto flex items-center gap-3">
-            {/* Search */}
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!searchQuery.trim()) return;
-              setSubmittedQuery(searchQuery.trim()); setActiveCategory('');
-              fetchNews(searchQuery);
-            }}>
-              <div className="flex items-center rounded-lg px-3 py-1.5 gap-2" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search news…"
-                  className="outline-none bg-transparent text-sm w-40 text-white placeholder-slate-500"/>
-                <button type="submit">
-                  <svg className="w-4 h-4" style={{ color: '#8BA3C1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.6-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                  </svg>
-                </button>
-              </div>
-            </form>
-
             {/* Analyze button */}
             <Link href="/analyze"
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors"
@@ -131,14 +108,6 @@ export default function Home() {
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <main className="max-w-7xl mx-auto px-4 py-8">
 
-        {submittedQuery && !loading && (
-          <p className="text-sm mb-5" style={{ color: '#8BA3C1' }}>
-            Results for <span className="font-bold text-white">"{submittedQuery}"</span>
-            <button onClick={() => { setSubmittedQuery(''); setSearchQuery(''); setActiveCategory('general'); }}
-              className="ml-2 text-xs underline" style={{ color: '#17C3B2' }}>Clear</button>
-          </p>
-        )}
-
         {error && (
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-4" style={{ background: '#2b0d0d' }}>
@@ -148,7 +117,7 @@ export default function Home() {
             </div>
             <h3 className="text-base font-semibold text-white mb-2">Unable to load news</h3>
             <p className="text-sm mb-5" style={{ color: '#8BA3C1' }}>{error}</p>
-            <button onClick={() => fetchNews(searchQuery)}
+            <button onClick={() => fetchNews()}
               className="px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
               style={{ background: '#17C3B2', color: '#0B1628' }}>Try Again</button>
           </div>
@@ -169,18 +138,7 @@ export default function Home() {
             <svg className="mx-auto h-12 w-12 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#17C3B2' }}>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            {submittedQuery ? (
-              <>
-                <h3 className="text-base font-semibold text-white mb-2">No results for "{submittedQuery}"</h3>
-                <p className="text-sm mb-5" style={{ color: '#8BA3C1' }}>No scannable articles matched. Try different keywords.</p>
-                <button onClick={() => { setSubmittedQuery(''); setSearchQuery(''); setActiveCategory('general'); }}
-                  className="px-5 py-2 rounded-lg text-sm font-semibold" style={{ background: '#17C3B2', color: '#0B1628' }}>
-                  Back to General News
-                </button>
-              </>
-            ) : (
-              <p className="text-sm" style={{ color: '#8BA3C1' }}>No articles found. Try a different category.</p>
-            )}
+            <p className="text-sm" style={{ color: '#8BA3C1' }}>No articles found. Try a different category.</p>
           </div>
         )}
       </main>
