@@ -35,7 +35,7 @@ export async function GET(request) {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate'
         },
-        next: { revalidate: 30 }, // Cache for 30 seconds (reduced from 5 mins for faster updates)
+        next: { revalidate: 300 }, // Cache for 5 minutes — saves Guardian API quota (500 req/day limit)
         signal: controller.signal
       });
 
@@ -44,10 +44,8 @@ export async function GET(request) {
       if (response.ok) {
         const data = await response.json();
         const res = NextResponse.json(data);
-        // Prevent Vercel Edge caching to ensure fresh data always
-        res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.headers.set('Pragma', 'no-cache');
-        res.headers.set('Expires', '0');
+        // Allow Vercel edge cache for 5 minutes to match revalidate window
+        res.headers.set('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
         return res;
       } else {
         const errorText = await response.text();
