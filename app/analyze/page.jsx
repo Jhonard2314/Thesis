@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from 'next/link';
 
 const isUrl = (str) => {
@@ -18,6 +18,9 @@ export default function AnalyzePage() {
   const [summaryData, setSummaryData] = useState(null);
   const [biasData, setBiasData]       = useState(null);
   const [errorMsg, setErrorMsg]       = useState('');
+
+  const [dark, setDark]               = useState(false);
+  useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
 
   const inputRef   = useRef(null);
   const pasteRef   = useRef(null);
@@ -105,6 +108,16 @@ export default function AnalyzePage() {
         <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#17C3B2' }}>
           Fine-Tuned Transformer-Based System
         </span>
+
+        {/* Dark/Light toggle */}
+        <button onClick={() => setDark(d => !d)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+          style={{ background: '#112240', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+          {dark
+            ? <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/></svg>Light</>
+            : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>Dark</>
+          }
+        </button>
       </header>
 
       {/* Logo + input */}
@@ -281,14 +294,14 @@ export default function AnalyzePage() {
                 <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
                   <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>Bias Grading Scale</h4>
                   <div className="w-full h-2 rounded-full overflow-hidden flex mb-3">
-                    <div className="bg-green-500 h-full w-1/2"/>
-                    <div className="bg-yellow-400 h-full w-[20%]"/>
-                    <div className="bg-red-500 h-full w-[30%]"/>
+                    <div className="bg-green-500 h-full" style={{ width: '45%' }}/>
+                    <div className="bg-yellow-400 h-full" style={{ width: '20%' }}/>
+                    <div className="bg-red-500 h-full" style={{ width: '35%' }}/>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% – 50%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51% – 70%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-400 font-bold">71% – 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% – 45%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">46% – 65%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-400 font-bold">66% – 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
                   </div>
                 </div>
 

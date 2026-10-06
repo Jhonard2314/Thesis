@@ -1,13 +1,21 @@
 'use client';
 
+import { useState } from 'react';
+
 export default function BiasModal({ isOpen, onClose, article, biasData, isLoading, loadingStage, error, onRunBiasAnalysis }) {
   if (!isOpen) return null;
+
+  const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle('dark', next);
+  };
 
   const getBiasColor = (l) => ({ Low: '#4CAF50', Medium: '#FFC107', High: '#F44336' }[l] ?? '#8BA3C1');
   const getBiasBg    = (l) => ({ Low: '#0d2b0d', Medium: '#2b2200', High: '#2b0d0d' }[l] ?? '#0F1E38');
   const getBiasBadge = (l) => ({ Low: 'bg-green-900 text-green-300', Medium: 'bg-yellow-900 text-yellow-300', High: 'bg-red-900 text-red-300' }[l] ?? 'bg-slate-700 text-slate-300');
-
-  return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(5,10,20,0.85)', backdropFilter: 'blur(4px)' }}>
       <div className="rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden"
         style={{ background: '#0D1B2E', border: '1px solid #1E3A5F' }}>
@@ -24,11 +32,22 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
             </h2>
             <p className="text-xs mt-0.5" style={{ color: '#8BA3C1' }}>Powered by BERT-BABE Linguistic Analysis</p>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 transition-colors hover:bg-slate-700/50">
-            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Dark/Light mode toggle */}
+            <button onClick={toggleDark}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+              style={{ background: dark ? '#1E3A5F' : '#112240', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+              {dark
+                ? <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/></svg>Light</>
+                : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>Dark</>
+              }
+            </button>
+            <button onClick={onClose} className="rounded-full p-2 transition-colors hover:bg-slate-700/50">
+              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -115,14 +134,14 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                 <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
                   <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>Bias Grading Scale</h4>
                   <div className="w-full h-2 rounded-full overflow-hidden flex mb-3">
-                    <div className="h-full w-1/2 bg-green-500"/>
-                    <div className="h-full w-[20%] bg-yellow-400"/>
-                    <div className="h-full w-[30%] bg-red-500"/>
+                    <div className="h-full bg-green-500" style={{ width: '45%' }}/>
+                    <div className="h-full bg-yellow-400" style={{ width: '20%' }}/>
+                    <div className="h-full bg-red-500" style={{ width: '35%' }}/>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% - 50%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51% - 70%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-400 font-bold">71% - 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% - 45%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">46% - 65%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-400 font-bold">66% - 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
                   </div>
                 </div>
               </div>
