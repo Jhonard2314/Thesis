@@ -3,6 +3,19 @@
 @tailwind utilities;
 
 :root {
+  --bg-primary:   #FFFFFF;
+  --bg-card:      #F8FAFC;
+  --bg-card-alt:  #F1F5F9;
+  --accent:       #17C3B2;
+  --accent-hover: #0FA89A;
+  --text-primary: #1E293B;
+  --text-muted:   #64748B;
+  --border:       #E2E8F0;
+  --background:   #FFFFFF;
+  --foreground:   #1E293B;
+}
+
+.dark {
   --bg-primary:   #0B1628;
   --bg-card:      #112240;
   --bg-card-alt:  #0F1E38;
