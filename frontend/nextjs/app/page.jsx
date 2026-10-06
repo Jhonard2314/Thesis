@@ -5,6 +5,7 @@ import NewsCard from './components/NewsCard';
 import CategoryFilter from './components/CategoryFilter';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import BiasModal from './components/BiasModal';
+import KeepAlive from './components/KeepAlive';
 
 /* ── Analyze helpers ─────────────────────── */
 const isUrl       = (s) => { try { new URL(s); return s.startsWith('http'); } catch { return false; } };
@@ -180,7 +181,9 @@ export default function Home() {
 
   /* ── Render ───────────────────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen" style={{ background: '#0B1628' }}>
+    <>
+      <KeepAlive />
+      <div className="min-h-screen" style={{ background: '#0B1628' }}>
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50" style={{ background: '#0D1B2E', borderBottom: '1px solid #1E3A5F' }}>
@@ -545,6 +548,7 @@ export default function Home() {
       <BiasModal isOpen={isModalOpen} onClose={handleCloseModal} article={selectedArticle}
         biasData={biasData} isLoading={biasLoading} loadingStage={loadingStage}
         error={biasError} onRunBiasAnalysis={handleRunBiasAnalysis} />
-    </div>
+      </div>
+    </>
   );
 }

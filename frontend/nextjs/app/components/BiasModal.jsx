@@ -115,14 +115,14 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                 <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
                   <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>Bias Grading Scale</h4>
                   <div className="w-full h-2 rounded-full overflow-hidden flex mb-3">
-                    <div className="h-full w-1/2 bg-green-500"/>
-                    <div className="h-full w-[20%] bg-yellow-400"/>
-                    <div className="h-full w-[30%] bg-red-500"/>
+                    <div className="h-full bg-green-500" style={{ width: '45%' }}/>
+                    <div className="h-full bg-yellow-400" style={{ width: '20%' }}/>
+                    <div className="h-full bg-red-500" style={{ width: '35%' }}/>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% - 50%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51% - 70%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-400 font-bold">71% - 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% - 45%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">46% - 65%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-400 font-bold">66% - 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
                   </div>
                 </div>
               </div>
