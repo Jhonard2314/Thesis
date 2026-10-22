@@ -64,7 +64,11 @@ export default function AnalyzePage() {
         body: JSON.stringify({ url: trimmed, action: 'get_summary' }),
       });
       const d = await r.json();
-      if (d.error) { setSavedUrl(trimmed); setStage('needs_text'); setTimeout(() => pasteRef.current?.focus(), 100); return; }
+      if (d.error) {
+        // Cloudflare / hard block — no point asking user to paste, explain it clearly
+        if (d.blocked) { setErrorMsg(d.error); setStage('error'); return; }
+        setSavedUrl(trimmed); setStage('needs_text'); setTimeout(() => pasteRef.current?.focus(), 100); return;
+      }
       setSummaryData(d); setStage('analyzing');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       const r2 = await fetch('/api/bias', {
@@ -234,8 +238,17 @@ export default function AnalyzePage() {
             <div className="rounded-2xl p-6 text-center max-w-lg mx-auto" style={{ background: '#2b0d0d', border: '1px solid #7f1d1d' }}>
               <p className="text-red-400 font-bold mb-1">Analysis Failed</p>
               <p className="text-red-500 text-sm mb-4">{errorMsg}</p>
-              <button onClick={reset} className="px-5 py-2 rounded-lg text-sm font-medium"
-                style={{ background: '#F44336', color: '#fff' }}>Try Again</button>
+              <div className="flex gap-3 justify-center flex-wrap">
+                <button onClick={reset} className="px-5 py-2 rounded-lg text-sm font-medium"
+                  style={{ background: '#F44336', color: '#fff' }}>Try Again</button>
+                {isUrl(input.trim()) && (
+                  <button onClick={() => { setSavedUrl(input.trim()); setStage('needs_text'); setTimeout(() => pasteRef.current?.focus(), 100); }}
+                    className="px-5 py-2 rounded-lg text-sm font-medium"
+                    style={{ background: '#112240', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                    Paste Article Text Instead
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

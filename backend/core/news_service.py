@@ -568,11 +568,14 @@ class NewsService:
         Only returns articles where scraped_content is populated (full scrape succeeded).
         This guarantees 100% accuracy — every card in the gallery has cached full article text.
         snippet_only articles are excluded entirely.
+        Capped at 15 input articles to keep the gallery load time fast.
         """
         if not articles:
             return []
+        # Cap input to 15 so we only scrape what we need — speeds up the gallery load significantly
+        candidates = articles[:15]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            screened = list(executor.map(self.check_scrapable, articles))
+            screened = list(executor.map(self.check_scrapable, candidates))
         # Strict: only articles with actual cached scraped content pass
         fully_scraped = [a for a in screened if a.get("scraped_content")]
         print(f"Prescreening: {len(fully_scraped)}/{len(screened)} articles have full cached content.", file=sys.stderr)
@@ -616,7 +619,7 @@ class NewsService:
                     return all(w in haystack for w in query_words)
                 screened = [a for a in screened if is_relevant(a)]
 
-        return screened[:30] if screened else unique_articles[:30]
+        return screened[:10] if screened else unique_articles[:10]
 
     def _is_prose_sentence(self, text):
         """Returns True if the string looks like a real prose sentence, not a JSON fragment or metadata."""
@@ -641,9 +644,121 @@ class NewsService:
             return False
         return True
 
+    def _get_site_timeout(self, url):
+        """Per-site request timeout in seconds. React-heavy or slow sites get more time."""
+        u = (url or '').lower()
+        if 'bbc.com' in u or 'bbc.co.uk' in u:
+            return 18
+        if 'cnn.com' in u:
+            return 20
+        if 'reuters.com' in u or 'theguardian.com' in u:
+            return 15
+        return 12
+
+    def _is_blocked_response(self, status_code, html_text):
+        """
+        Returns a human-readable block reason string if the response looks like an
+        anti-scraping block, or None if the page looks fine.
+        """
+        if status_code == 403:
+            return "Access denied (403). This site blocks automated requests."
+        if status_code == 429:
+            return "Rate limited (429). Too many requests — try again later."
+        if status_code == 503:
+            return "Service unavailable (503). The site may be blocking scrapers."
+        if status_code != 200:
+            return f"HTTP {status_code} error from this site."
+        html_lower = html_text[:3000].lower()
+        if 'checking your browser' in html_lower or 'cf-browser-verification' in html_lower:
+            return "Cloudflare bot protection detected. This site cannot be scraped directly."
+        if 'enable javascript' in html_lower or 'javascript is disabled' in html_lower:
+            return "This page requires JavaScript — scraping is not possible."
+        if 'access denied' in html_lower and len(html_text) < 2000:
+            return "Access denied. The site may require a login or subscription."
+        return None
+
+    def _extract_bbc_article(self, html_text):
+        """
+        BBC-specific fallback extractor for sport pages, live blogs and other
+        article types that don't follow the standard fragment/paragraph __NEXT_DATA__ shape.
+        Targets BBC's data-component="text-block" divs and data-testid="paragraph" divs,
+        then falls back to all <p> tags inside the <article> element.
+        """
+        try:
+            article_match = re.search(r'<article[^>]*>(.*?)</article>', html_text, re.DOTALL | re.IGNORECASE)
+            body_html = article_match.group(1) if article_match else html_text
+
+            text_blocks = re.findall(
+                r'<div[^>]+data-component=["\']text-block["\'][^>]*>(.*?)</div>',
+                body_html, re.DOTALL | re.IGNORECASE
+            )
+            para_blocks = re.findall(
+                r'<div[^>]+data-testid=["\']paragraph["\'][^>]*>(.*?)</div>',
+                body_html, re.DOTALL | re.IGNORECASE
+            )
+            all_blocks = text_blocks + para_blocks
+
+            boilerplate = ['cookie', 'privacy policy', 'terms of use', 'sign in',
+                           'subscribe', 'newsletter', 'bbc is not responsible']
+            collected = []
+
+            if all_blocks:
+                for block in all_blocks:
+                    t = html.unescape(re.sub(r'<[^>]+>', ' ', block)).strip()
+                    t = re.sub(r'\s+', ' ', t).strip()
+                    if self._is_prose_sentence(t) and not any(b in t.lower() for b in boilerplate):
+                        collected.append(t)
+            else:
+                for p in re.findall(r'<p[^>]*>(.*?)</p>', body_html, re.DOTALL | re.IGNORECASE):
+                    t = html.unescape(re.sub(r'<[^>]+>', ' ', p)).strip()
+                    t = re.sub(r'\s+', ' ', t).strip()
+                    if len(t) > 40 and not any(b in t.lower() for b in boilerplate):
+                        collected.append(t)
+
+            if not collected:
+                return None
+            result = ' '.join(collected)
+            return result if len(result) >= 300 else None
+        except Exception:
+            return None
+
+    def _extract_cnn_article(self, html_text):
+        """
+        CNN-specific extractor.
+        CNN serves most articles as static HTML inside div.article__content.
+        Also handles paragraph-container patterns and plain <p> fallback.
+        """
+        try:
+            body_match = re.search(
+                r'<div[^>]+class=["\'][^"\']*article__content[^"\']*["\'][^>]*>(.*?)</div\s*>',
+                html_text, re.DOTALL | re.IGNORECASE
+            )
+            if not body_match:
+                body_match = re.search(
+                    r'<div[^>]+class=["\'][^"\']*paragraph[^"\']*["\'][^>]*>(.*?)</div\s*>',
+                    html_text, re.DOTALL | re.IGNORECASE
+                )
+            body_html = body_match.group(1) if body_match else html_text
+
+            boilerplate = ['cookie', 'privacy policy', 'sign in', 'subscribe',
+                           'newsletter', 'follow cnn', 'watch cnn']
+            collected = []
+            for p in re.findall(r'<p[^>]*>(.*?)</p>', body_html, re.DOTALL | re.IGNORECASE):
+                t = html.unescape(re.sub(r'<[^>]+>', ' ', p)).strip()
+                t = re.sub(r'\s+', ' ', t).strip()
+                if len(t) > 40 and not any(b in t.lower() for b in boilerplate):
+                    collected.append(t)
+
+            if not collected:
+                return None
+            result = ' '.join(collected)
+            return result if len(result) >= 300 else None
+        except Exception:
+            return None
+
     def _extract_next_data_text(self, html_text):
         """
-        Extract article text from __NEXT_DATA__ JSON embedded in pages like BBC, Reuters, etc.
+        Extract article text from __NEXT_DATA__ JSON embedded in pages like BBC, Reuters, CNN, etc.
         Targets 'text' leaf nodes that contain prose sentences, with strict quality filtering.
         """
         try:
@@ -655,17 +770,15 @@ class NewsService:
             collected = []
 
             def walk(obj, depth=0):
-                if depth > 20:
+                if depth > 25:
                     return
                 if isinstance(obj, str):
                     clean = html.unescape(obj).strip()
-                    # Only keep strings that look like real prose sentences
                     if self._is_prose_sentence(clean) and clean not in collected:
                         collected.append(clean)
                 elif isinstance(obj, dict):
-                    # For BBC: target 'text' inside 'model' dicts (fragment/paragraph structure)
-                    # but ONLY if they don't have a 'type' that indicates metadata
                     obj_type = obj.get('type', '')
+                    # BBC: fragment/paragraph blocks with nested model.text
                     if obj_type in ('fragment', 'paragraph', 'text', ''):
                         model = obj.get('model', {})
                         if isinstance(model, dict):
@@ -676,8 +789,18 @@ class NewsService:
                         if isinstance(blocks, list):
                             for b in blocks:
                                 walk(b, depth + 1)
-                    # Always recurse into these known-safe keys
-                    for key in ('blocks', 'paragraphs', 'body', 'content', 'children', 'items'):
+                    # CNN: contentElements with htmlContent or data.html
+                    if obj_type in ('text', 'paragraph') or 'htmlContent' in obj or \
+                            ('data' in obj and isinstance(obj.get('data'), dict) and 'html' in obj['data']):
+                        html_val = obj.get('htmlContent') or obj.get('data', {}).get('html', '')
+                        if isinstance(html_val, str) and html_val:
+                            clean_val = html.unescape(re.sub(r'<[^>]+>', ' ', html_val)).strip()
+                            clean_val = re.sub(r'\s+', ' ', clean_val).strip()
+                            if self._is_prose_sentence(clean_val) and clean_val not in collected:
+                                collected.append(clean_val)
+                    # Always recurse into known-safe keys
+                    for key in ('blocks', 'paragraphs', 'body', 'content', 'children', 'items',
+                                'contentElements', 'sections', 'article', 'data', 'props', 'pageProps'):
                         if key in obj:
                             walk(obj[key], depth + 1)
                 elif isinstance(obj, list):
@@ -686,19 +809,18 @@ class NewsService:
 
             walk(data)
 
-            # Final dedup and cleaning pass
             seen = set()
             unique = []
             boilerplate = [
                 'bbc is not responsible', 'read about our approach',
                 'external linking', 'cookie', 'privacy policy',
-                'terms of use', 'sign in', 'subscribe', 'newsletter'
+                'terms of use', 'sign in', 'subscribe', 'newsletter',
+                'follow cnn', 'watch cnn', 'sign up for our newsletter'
             ]
             for s in collected:
                 s_lower = s.lower()
                 if any(b in s_lower for b in boilerplate):
                     continue
-                # Strip residual JSON syntax from edges
                 s = re.sub(r'^[,\s\[\{"\':]+', '', s)
                 s = re.sub(r'[,\s\]\}"\']+$', '', s)
                 s = s.strip()
@@ -715,9 +837,23 @@ class NewsService:
             return None
 
     def get_full_content(self, url, timeout=None):
+        """
+        Fetch and extract full article text from a URL.
+        Tries four strategies in order:
+          1. newspaper3k standard extraction
+          2. Site-specific extractor (BBC or CNN)
+          3. __NEXT_DATA__ JSON extraction (React apps: BBC, Reuters, CNN, Vox, etc.)
+          4. Raw <p> tag extraction fallback
+        Returns extracted text, None if no content found, or '__BLOCKED__:<reason>'
+        if the site actively blocked the request.
+        """
         try:
             if timeout is None:
-                timeout = 20
+                timeout = self._get_site_timeout(url)
+
+            u = (url or '').lower()
+            is_bbc = 'bbc.com' in u or 'bbc.co.uk' in u
+            is_cnn = 'cnn.com' in u
 
             headers = {
                 'User-Agent': self.config.browser_user_agent,
@@ -727,9 +863,18 @@ class NewsService:
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             }
+            # CNN: send Referer so it looks like organic Google traffic
+            if is_cnn:
+                headers['Referer'] = 'https://www.google.com/'
+                headers['Sec-Fetch-Mode'] = 'navigate'
+                headers['Sec-Fetch-Site'] = 'cross-site'
+
             response = self.session.get(url, headers=headers, timeout=timeout)
-            if response.status_code != 200:
-                return None
+
+            block_reason = self._is_blocked_response(response.status_code, response.text)
+            if block_reason:
+                print(f"Scrape blocked for {url}: {block_reason}", file=sys.stderr)
+                return f"__BLOCKED__:{block_reason}"
 
             html_text = response.text
 
@@ -741,12 +886,24 @@ class NewsService:
             if text and len(text) >= 400:
                 return text
 
-            # Strategy 2: __NEXT_DATA__ JSON extraction (BBC, Reuters, Vox, etc.)
+            # Strategy 2a: BBC-specific extractor (sport pages, live blogs, etc.)
+            if is_bbc:
+                bbc_text = self._extract_bbc_article(html_text)
+                if bbc_text:
+                    return bbc_text
+
+            # Strategy 2b: CNN-specific extractor
+            if is_cnn:
+                cnn_text = self._extract_cnn_article(html_text)
+                if cnn_text:
+                    return cnn_text
+
+            # Strategy 3: __NEXT_DATA__ JSON extraction (BBC, Reuters, CNN, Vox, etc.)
             next_data_text = self._extract_next_data_text(html_text)
             if next_data_text:
                 return next_data_text
 
-            # Strategy 3: Extract all <p> tags as fallback
+            # Strategy 4: Raw <p> tag extraction — last resort
             paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', html_text, re.DOTALL | re.IGNORECASE)
             clean_paras = []
             boilerplate_p = ['cookie', 'privacy', 'subscribe', 'newsletter', 'sign in', 'advertisement']
@@ -759,6 +916,9 @@ class NewsService:
             if len(p_text) >= 400:
                 return p_text
 
+            return None
+        except requests.exceptions.Timeout:
+            print(f"Timeout scraping {url}", file=sys.stderr)
             return None
         except Exception:
             return None

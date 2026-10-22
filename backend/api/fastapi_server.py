@@ -232,6 +232,12 @@ def analyze(request: AnalysisRequest):
 
         # 1. Get content — priority: already-extracted content > pre-screened cache > live scrape > snippet fallback
         content = request.content or request.scraped_content or service.get_full_content(request.url)
+
+        # Surface a clear message when the site actively blocked the scraper
+        if isinstance(content, str) and content.startswith('__BLOCKED__:'):
+            block_msg = content[len('__BLOCKED__:'):]
+            return {"error": block_msg, "blocked": True}
+
         if not content and request.snippet:
             import html as _html
             import re as _re
