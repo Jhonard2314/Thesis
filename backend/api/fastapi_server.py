@@ -90,6 +90,7 @@ class AnalysisRequest(BaseModel):
     content: Optional[str] = None
     snippet: Optional[str] = None        # Fallback text when URL scraping fails
     scraped_content: Optional[str] = None  # Pre-screened content cached at fetch time
+    summary: Optional[str] = None        # Pre-computed summary — skips BART re-run in analyze_bias
     action: str = "analyze_bias"
 
 @app.get("/")
@@ -421,8 +422,8 @@ def analyze(request: AnalysisRequest):
                         }
                     )
             
-            # 3. Get Summary - we always have this (local BART or HF API fallback or truncation)
-            summary = service.summarize_content(content)
+            # 3. Get Summary - use pre-computed summary if provided (avoids double BART inference)
+            summary = request.summary or service.summarize_content(content)
             if not summary:
                 summary = content.split('\n')[0][:300] + "..."
             

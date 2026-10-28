@@ -118,7 +118,7 @@ export default function Home() {
     try {
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: selectedArticle.url, content: biasData?.full_content, snippet: selectedArticle.description || '', scraped_content: selectedArticle.scraped_content || null, action: 'analyze_bias' }),
+        body: JSON.stringify({ url: selectedArticle.url, content: biasData?.full_content, summary: biasData?.summary, snippet: selectedArticle.description || '', scraped_content: selectedArticle.scraped_content || null, action: 'analyze_bias' }),
       });
       const d2 = await r2.json();
       if (d2.error) { setBiasError(d2.error); return; }
@@ -140,20 +140,21 @@ export default function Home() {
     setAnalyzeStage('analyzing'); setAnalyzeSummary(null); setAnalyzeBias(null);
     setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     try {
-      const r1 = await fetch('/api/bias', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, action: 'get_summary', ...(url ? { url } : {}) }),
-      });
-      const d1 = await r1.json();
+      // Fire summary and bias in parallel — both have the content already
+      const [r1, r2] = await Promise.all([
+        fetch('/api/bias', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, action: 'get_summary', ...(url ? { url } : {}) }),
+        }),
+        fetch('/api/bias', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, action: 'analyze_bias', ...(url ? { url } : {}) }),
+        }),
+      ]);
+      const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
       if (d1.error) { setAnalyzeError(d1.error); setAnalyzeStage('error'); return; }
-      setAnalyzeSummary(d1);
-
-      const r2 = await fetch('/api/bias', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: d1.full_content || content, action: 'analyze_bias', ...(url ? { url } : {}) }),
-      });
-      const d2 = await r2.json();
       if (d2.error) { setAnalyzeError(d2.error); setAnalyzeStage('error'); return; }
+      setAnalyzeSummary(d1);
       setAnalyzeBias(d2); setAnalyzeStage('done');
       setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (e) { setAnalyzeError(e.message || 'Network error'); setAnalyzeStage('error'); }
@@ -166,6 +167,7 @@ export default function Home() {
 
     setAnalyzeStage('extracting'); setAnalyzeSummary(null); setAnalyzeBias(null); setAnalyzeError('');
     try {
+      // Step 1: scrape content + summary
       const r = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed, action: 'get_summary' }),
@@ -178,9 +180,10 @@ export default function Home() {
       setAnalyzeSummary(d); setAnalyzeStage('analyzing');
       setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
+      // Step 2: bias analysis — pass the summary so backend skips BART re-run
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed, content: d.full_content, action: 'analyze_bias' }),
+        body: JSON.stringify({ url: trimmed, content: d.full_content, summary: d.summary, action: 'analyze_bias' }),
       });
       const d2 = await r2.json();
       if (d2.error) { setAnalyzeError(d2.error); setAnalyzeStage('error'); return; }
@@ -201,12 +204,12 @@ export default function Home() {
   return (
     <>
       <KeepAlive />
-      <div className="min-h-screen" style={{ background: '#0B1628' }}>
+      <div className="min-h-screen" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50" style={{ background: '#0D1B2E', borderBottom: '1px solid #1E3A5F' }}>
+      <header className="sticky top-0 z-50" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
         {/* Title bar */}
-        <div className="max-w-7xl mx-auto px-4 py-3 text-center" style={{ borderBottom: '1px solid #1E3A5F' }}>
+        <div className="max-w-7xl mx-auto px-4 py-3 text-center" style={{ borderBottom: '1px solid var(--border)' }}>
           <h1 className="text-lg font-black uppercase tracking-widest" style={{ color: '#17C3B2' }}>
             Fine-Tuned Transformer-Based System
           </h1>
@@ -225,7 +228,7 @@ export default function Home() {
             {/* Theme toggle */}
             <button onClick={toggleTheme}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-              style={{ background: '#112240', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+              style={{ background: 'var(--bg-card-alt)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
               {isDark
                 ? <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/></svg>Light</>
                 : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>Dark</>
@@ -233,8 +236,8 @@ export default function Home() {
             </button>
 
             <div className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm"
-              style={{ background: '#112240', border: '1px solid #1E3A5F', minWidth: '220px' }}>
-              <svg className="w-3.5 h-3.5 shrink-0" style={{ color: '#8BA3C1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              style={{ background: 'var(--bg-card-alt)', border: '1px solid var(--border)', minWidth: '220px' }}>
+              <svg className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
               </svg>
               <input
@@ -244,7 +247,7 @@ export default function Home() {
                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                 placeholder="Search articles…"
                 className="flex-1 bg-transparent text-xs outline-none"
-                style={{ color: '#E2EAF4', caretColor: '#17C3B2' }}
+                style={{ color: 'var(--text-primary)', caretColor: '#17C3B2' }}
               />
               {searchQuery && (
                 <button onClick={clearSearch} style={{ color: '#5A7A9A' }} className="hover:text-white transition-colors">
@@ -269,13 +272,13 @@ export default function Home() {
 
         {/* ── Inline Analyze Panel ──────────────────────────────────────── */}
         <section>
-          <h2 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>
+          <h2 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
             Analyze an Article
           </h2>
 
           {/* Input bar */}
             <div className={`flex gap-3 rounded-2xl px-4 py-3 ${analyzeInput.length > 120 ? 'items-start' : 'items-center'}`}
-            style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             {isUrl(analyzeInput) ? (
               <svg className="w-5 h-5 shrink-0" style={{ color: '#17C3B2' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
@@ -294,7 +297,7 @@ export default function Home() {
               placeholder="Paste a URL or article text to analyze…"
               disabled={analyzeLoading || analyzeStage === 'needs_text'}
               className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50 py-1"
-              style={{ color: '#E2EAF4', caretColor: '#17C3B2', verticalAlign: 'middle' }}
+              style={{ color: 'var(--text-primary)', caretColor: '#17C3B2', verticalAlign: 'middle' }}
             />
             {analyzeInput && !analyzeLoading && analyzeStage !== 'needs_text' && (
               <button onClick={analyzeReset} style={{ color: '#5A7A9A' }} className="shrink-0 hover:text-white transition-colors">
@@ -321,7 +324,7 @@ export default function Home() {
             {analyzeStage !== 'idle' && !analyzeLoading && (
               <button onClick={analyzeReset}
                 className="shrink-0 px-4 py-1.5 text-sm font-medium rounded-xl transition-colors"
-                style={{ background: 'transparent', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                 Clear
               </button>
             )}
@@ -329,7 +332,7 @@ export default function Home() {
 
           {/* needs_text fallback */}
           {analyzeStage === 'needs_text' && (
-            <div className="rounded-2xl p-5 mt-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
+            <div className="rounded-2xl p-5 mt-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: '#2b2200' }}>
                   <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -337,13 +340,13 @@ export default function Home() {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-white">Couldn't access this article automatically</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#8BA3C1' }}>Open the article, select all text, copy and paste below.</p>
+                  <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Couldn't access this article automatically</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Open the article, select all text, copy and paste below.</p>
                 </div>
               </div>
               {analyzeSavedUrl && (
-                <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: '#0D1B2E', border: '1px solid #1E3A5F' }}>
-                  <span className="truncate" style={{ color: '#8BA3C1' }}>{analyzeSavedUrl}</span>
+                <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                  <span className="truncate" style={{ color: 'var(--text-muted)' }}>{analyzeSavedUrl}</span>
                   <a href={analyzeSavedUrl} target="_blank" rel="noopener noreferrer"
                     className="ml-auto font-medium shrink-0" style={{ color: '#17C3B2' }}>Open ↗</a>
                 </div>
@@ -356,7 +359,7 @@ export default function Home() {
                 rows={7}
                 placeholder="Paste the full article text here…"
                 className="w-full rounded-xl text-sm leading-relaxed p-4 outline-none resize-none"
-                style={{ background: '#0D1B2E', border: '1px solid #1E3A5F', color: '#E2EAF4', caretColor: '#17C3B2' }}
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)', caretColor: '#17C3B2' }}
               />
               {analyzePastedText.trim() && (
                 <p className="text-xs mt-1" style={{ color: '#5A7A9A' }}>{analyzePastedText.trim().split(/\s+/).length} words</p>
@@ -370,7 +373,7 @@ export default function Home() {
                 </button>
                 <button onClick={analyzeReset}
                   className="px-5 py-2 text-sm font-medium rounded-xl transition-colors"
-                  style={{ background: 'transparent', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                   Cancel
                 </button>
               </div>
@@ -391,7 +394,7 @@ export default function Home() {
 
           {/* Loading spinner (before summary arrives) */}
           {analyzeLoading && !analyzeSummary && (
-            <div className="flex items-center gap-3 mt-4 px-2" style={{ color: '#8BA3C1' }}>
+            <div className="flex items-center gap-3 mt-4 px-2" style={{ color: 'var(--text-muted)' }}>
               <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin shrink-0"/>
               <p className="text-sm">{analyzeStage === 'extracting' ? 'Fetching article content…' : 'Running analysis…'}</p>
             </div>
@@ -402,11 +405,11 @@ export default function Home() {
             <div ref={analyzeResultRef} className="flex gap-5 mt-5">
               {/* Left panel */}
               <div className="w-64 shrink-0 space-y-4">
-                <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: '#8BA3C1' }}>Executive Summary</h4>
+              <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Executive Summary</h4>
                   {analyzeSummary.summary
-                    ? <p className="text-sm leading-relaxed italic" style={{ color: '#B8C5D6' }}>"{analyzeSummary.summary}"</p>
-                    : <p className="text-sm italic" style={{ color: '#5A7A9A' }}>Summary unavailable.</p>}
+                    ? <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text-muted)' }}>"{analyzeSummary.summary}"</p>
+                    : <p className="text-sm italic" style={{ color: 'var(--text-muted)' }}>Summary unavailable.</p>}
                 </div>
 
                 {(analyzeStage === 'analyzing' || analyzeStage === 'done') && (
@@ -427,24 +430,24 @@ export default function Home() {
                 )}
 
                 {/* Grading scale */}
-                <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: '#8BA3C1' }}>Bias Grading Scale</h4>
+                <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Bias Grading Scale</h4>
                   <div className="w-full h-2 rounded-full overflow-hidden flex mb-2">
                     <div className="bg-green-500 h-full w-1/2"/>
                     <div className="bg-yellow-400 h-full w-[20%]"/>
                     <div className="bg-red-500 h-full w-[30%]"/>
                   </div>
                   <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-400 font-bold">0%–50%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51%–70%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-400 font-bold">71%–100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-400 font-bold">0%–50%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51%–70%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-400 font-bold">71%–100%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Strongly Biased</span></div>
                   </div>
                 </div>
 
                 {/* Top biased words */}
                 {analyzeBias?.top_words?.length > 0 && analyzeBias.bias_level !== 'Low' && (
-                  <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: '#8BA3C1' }}>Key Biased Markers</h4>
+                  <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Key Biased Markers</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {analyzeBias.top_words.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: '#1A0808', border: '1px solid #7f1d1d' }}>
@@ -467,16 +470,16 @@ export default function Home() {
               </div>
 
               {/* Right panel — article with sentence highlighting */}
-              <div className="flex-1 rounded-xl p-6 min-h-[300px]" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                <h4 className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: '#8BA3C1' }}>Full Article Context</h4>
+              <div className="flex-1 rounded-xl p-6 min-h-[300px]" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                <h4 className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: 'var(--text-muted)' }}>Full Article Context</h4>
                 {!analyzeBias?.sentence_breakdown ? (
                   <div className="space-y-3">
                     {(analyzeSummary?.full_content || '').split('\n').filter(Boolean).map((para, i) => (
-                      <p key={i} className="text-sm leading-relaxed" style={{ color: '#5A7A9A' }}>{para}</p>
+                      <p key={i} className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>{para}</p>
                     ))}
                     {analyzeStage === 'analyzing' && (
-                      <div className="mt-4 rounded-xl p-5 text-center" style={{ border: '2px dashed #1E3A5F' }}>
-                        <p className="text-sm italic" style={{ color: '#5A7A9A' }}>Bias highlighting will appear here after analysis…</p>
+                      <div className="mt-4 rounded-xl p-5 text-center" style={{ border: '2px dashed var(--border)' }}>
+                        <p className="text-sm italic" style={{ color: 'var(--text-muted)' }}>Bias highlighting will appear here after analysis…</p>
                       </div>
                     )}
                   </div>
@@ -488,14 +491,14 @@ export default function Home() {
                         <span key={idx}
                           className="inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors"
                           style={{
-                            color: '#E2EAF4',
+                            color: 'var(--text-primary)',
                             background: biased ? 'rgba(244,67,54,0.15)' : 'rgba(76,175,80,0.1)',
                             borderBottom: biased ? '2px solid rgba(244,67,54,0.6)' : '2px solid rgba(76,175,80,0.4)',
                           }}
                           title={`${s.label}: ${s.score}%`}>
                           {s.text}{' '}
                           <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal"
-                            style={{ background: '#0B1628', color: '#E2EAF4', border: '1px solid #1E3A5F' }}>
+                            style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                             {s.label}: {s.score}%
                             {s.reasoning && <span className="block mt-1 italic font-normal" style={{ color: '#8BA3C1' }}>"{s.reasoning}"</span>}
                           </span>
@@ -510,17 +513,17 @@ export default function Home() {
         </section>
 
         {/* ── Divider ───────────────────────────────────────────────────── */}
-        <div style={{ borderTop: '1px solid #1E3A5F' }}/>
+        <div style={{ borderTop: '1px solid var(--border)' }}/>
 
         {/* ── News feed ─────────────────────────────────────────────────── */}
         <section>
           {activeQuery && (
             <div className="flex items-center gap-2 mb-4">
-              <p className="text-sm" style={{ color: '#8BA3C1' }}>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 Results for <span className="font-bold" style={{ color: '#17C3B2' }}>"{activeQuery}"</span>
               </p>
               <button onClick={clearSearch} className="text-xs px-2 py-0.5 rounded-full transition-colors"
-                style={{ background: '#112240', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                 Clear ×
               </button>
             </div>
@@ -533,8 +536,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
-              <h3 className="text-base font-semibold text-white mb-2">Unable to load news</h3>
-              <p className="text-sm mb-5" style={{ color: '#8BA3C1' }}>{error}</p>
+              <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Unable to load news</h3>
+              <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>{error}</p>
               <button onClick={fetchNews}
                 className="px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
                 style={{ background: '#17C3B2', color: '#0B1628' }}>Try Again</button>
@@ -558,16 +561,16 @@ export default function Home() {
               </svg>
               {activeQuery ? (
                 <>
-                  <p className="text-sm font-semibold text-white mb-1">No results for "{activeQuery}"</p>
-                  <p className="text-xs mb-4" style={{ color: '#8BA3C1' }}>Try a different search term or browse by category.</p>
+                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No results for "{activeQuery}"</p>
+                  <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Try a different search term or browse by category.</p>
                   <button onClick={clearSearch}
                     className="px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
-                    style={{ background: '#112240', border: '1px solid #1E3A5F', color: '#17C3B2' }}>
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#17C3B2' }}>
                     Clear search
                   </button>
                 </>
               ) : (
-                <p className="text-sm" style={{ color: '#8BA3C1' }}>No articles found. Try a different category.</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No articles found. Try a different category.</p>
               )}
             </div>
           )}

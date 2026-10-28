@@ -32,6 +32,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'Geist', Arial, Helvetica, sans-serif;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 /* Custom scrollbar */
