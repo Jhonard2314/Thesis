@@ -20,11 +20,11 @@ export default function CategoryFilter({ activeCategory, onCategoryChange }) {
             <li key={cat.id}>
               <button
                 onClick={() => onCategoryChange(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all focus:outline-none border ${
-                  isActive
-                    ? 'bg-teal-500 border-teal-500 text-white'
-                    : 'border-slate-600 text-slate-300 hover:border-teal-500 hover:text-teal-400'
-                }`}
+                className="px-3 py-1.5 rounded-full text-xs font-medium transition-all focus:outline-none"
+                style={isActive
+                  ? { background: 'var(--accent)', border: '1px solid var(--accent)', color: '#FFFFFF' }
+                  : { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)' }
+                }
               >
                 {cat.name}
               </button>

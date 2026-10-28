@@ -24,9 +24,9 @@ export default function Home() {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    // Check if user has a preference stored, otherwise default to light
+    // Default to light mode unless user has explicitly chosen dark
     const stored = localStorage.getItem('theme');
-    const defaultDark = stored ? stored === 'dark' : false;
+    const defaultDark = stored === 'dark';
     setIsDark(defaultDark);
     document.documentElement.classList.toggle('dark', defaultDark);
   }, []);

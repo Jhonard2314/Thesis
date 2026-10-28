@@ -3,16 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary:   #FFFFFF;
-  --bg-card:      #F8FAFC;
-  --bg-card-alt:  #F1F5F9;
-  --accent:       #17C3B2;
-  --accent-hover: #0FA89A;
-  --text-primary: #1E293B;
-  --text-muted:   #64748B;
-  --border:       #E2E8F0;
-  --background:   #FFFFFF;
-  --foreground:   #1E293B;
+  --bg-primary:   #F4F6F9;
+  --bg-card:      #FFFFFF;
+  --bg-card-alt:  #EDF0F5;
+  --accent:       #0FA89A;
+  --accent-hover: #0D9488;
+  --text-primary: #1A2332;
+  --text-muted:   #52647A;
+  --text-subtle:  #7A90A8;
+  --border:       #D1DAE6;
+  --border-light: #E8EDF4;
+  --background:   #F4F6F9;
+  --foreground:   #1A2332;
+  --shadow:       rgba(26,35,50,0.08);
 }
 
 .dark {
@@ -21,11 +24,14 @@
   --bg-card-alt:  #0F1E38;
   --accent:       #17C3B2;
   --accent-hover: #0FA89A;
-  --text-primary: #FFFFFF;
+  --text-primary: #E8EDF4;
   --text-muted:   #8BA3C1;
+  --text-subtle:  #5A7A9A;
   --border:       #1E3A5F;
+  --border-light: #172D4A;
   --background:   #0B1628;
-  --foreground:   #FFFFFF;
+  --foreground:   #E8EDF4;
+  --shadow:       rgba(0,0,0,0.3);
 }
 
 body {
