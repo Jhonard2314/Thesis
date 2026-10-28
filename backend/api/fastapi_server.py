@@ -452,7 +452,7 @@ def analyze(request: AnalysisRequest):
 
             avg_bias_prob = total_score / len(batch_results)
             
-            level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.45 else "Low"
+            level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.50 else "Low"
             
             sample_text = " ".join(analysis_sentences[:8])
             if not use_remote_bias_fallback and service.bias_model and service.bias_tokenizer:
