@@ -1,7 +1,13 @@
 'use client';
 
-export default function BiasModal({ isOpen, onClose, article, biasData, isLoading, loadingStage, error, onRunBiasAnalysis }) {
+export default function BiasModal({ isOpen, onClose, article, biasData, isLoading, loadingStage, error, onRunBiasAnalysis, modelVersion = 'v2', modelInfo = {} }) {
   if (!isOpen) return null;
+
+  // Use model info from response if available, fall back to prop
+  const activeVersion = biasData?.model_version || modelVersion;
+  const activeLabel   = biasData?.model_label   || modelInfo[activeVersion]?.label  || 'BERT-BABE';
+  const activeDetail  = modelInfo[activeVersion]?.detail || '';
+  const activeColor   = modelInfo[activeVersion]?.color  || '#0FA89A';
 
   const getBiasColor  = (l) => ({ Low: '#16a34a', Medium: '#d97706', High: '#dc2626' }[l] ?? 'var(--text-muted)');
   const getBiasBg     = (l) => ({ Low: 'rgba(22,163,74,0.08)', Medium: 'rgba(217,119,6,0.08)', High: 'rgba(220,38,38,0.08)' }[l] ?? 'var(--bg-card-alt)');
@@ -20,9 +26,16 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
           <div>
             <h2 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
               Media Bias Analysis
-              <span className="text-[10px] font-normal px-2 py-0.5 rounded-full" style={{ background: 'var(--accent)', color: '#FFFFFF' }}>
-                BERT-BABE
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: activeColor, color: '#fff' }}>
+                {activeLabel}
               </span>
+              {activeDetail && (
+                <span className="text-[9px] font-normal px-2 py-0.5 rounded-full"
+                  style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}35` }}>
+                  {activeDetail}
+                </span>
+              )}
             </h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Powered by BERT-BABE Linguistic Analysis</p>
           </div>
@@ -86,9 +99,12 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                   <div className="text-4xl font-black mb-1" style={{ color: getBiasColor(biasData.bias_level) }}>
                     {biasData.bias_score}%
                   </div>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-2 ${getBiasBadge(biasData.bias_level)}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${getBiasBadge(biasData.bias_level)}`}>
                     Bias Score
                   </span>
+                  <p className="text-[9px] font-semibold mb-2" style={{ color: activeColor }}>
+                    {activeLabel}{activeDetail ? ` · ${activeDetail}` : ''}
+                  </p>
                   <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{biasData.explanation}</p>
                 </div>
 
@@ -112,10 +128,10 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
               <div className="space-y-4">
                 <button onClick={onRunBiasAnalysis}
                   className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
-                  style={{ background: 'var(--accent)', color: '#FFFFFF' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}>
-                  Start Deep Analysis
+                  style={{ background: activeColor, color: '#FFFFFF' }}
+                  onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+                  onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}>
+                  Analyze with {activeLabel}
                 </button>
 
                 {/* Grading scale */}

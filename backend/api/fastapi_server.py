@@ -43,18 +43,29 @@ async def startup_event():
         # mark BOTH models as Error so callers never see a permanent "Loading" state.
         try:
             try:
-                print("Startup Task: Pre-loading bias model...", file=sys.stderr)
-                service.load_local_bias_model()
+                print("Startup Task: Pre-loading bias model v2 (96%)...", file=sys.stderr)
+                service.load_local_bias_model("v2")
                 if service.bias_model_status == "Loaded":
-                    print("Startup Task: Bias model ready.", file=sys.stderr)
+                    print("Startup Task: Bias model v2 ready.", file=sys.stderr)
                 else:
-                    print(f"Startup Task: Bias model load finished with status={service.bias_model_status} error={service.bias_model_error}", file=sys.stderr)
+                    print(f"Startup Task: Bias model v2 finished status={service.bias_model_status}", file=sys.stderr)
             except Exception as ex:
                 service.bias_model_status = "Error"
-                service.bias_model_error = f"Startup thread exception (bias): {ex}\n{tb_global.format_exc()}"
+                service.bias_model_error = f"Startup thread exception (bias v2): {ex}\n{tb_global.format_exc()}"
                 service.bias_load_started_at = None
-                print(f"Startup Task: Bias model FATAL exception caught -> bias_model_status=Error. {ex}", file=sys.stderr)
-                print(tb_global.format_exc(), file=sys.stderr)
+                print(f"Startup Task: Bias model v2 FATAL: {ex}", file=sys.stderr)
+
+            try:
+                print("Startup Task: Pre-loading bias model v1 (83%)...", file=sys.stderr)
+                service.load_local_bias_model("v1")
+                if service.bias_model_v1_status == "Loaded":
+                    print("Startup Task: Bias model v1 ready.", file=sys.stderr)
+                else:
+                    print(f"Startup Task: Bias model v1 finished status={service.bias_model_v1_status}", file=sys.stderr)
+            except Exception as ex:
+                service.bias_model_v1_status = "Error"
+                service.bias_model_v1_error = f"Startup thread exception (bias v1): {ex}\n{tb_global.format_exc()}"
+                print(f"Startup Task: Bias model v1 FATAL: {ex}", file=sys.stderr)
 
             try:
                 print("Startup Task: Pre-loading facebook/bart-large-cnn summarizer...", file=sys.stderr)
@@ -91,6 +102,7 @@ class AnalysisRequest(BaseModel):
     snippet: Optional[str] = None        # Fallback text when URL scraping fails
     scraped_content: Optional[str] = None  # Pre-screened content cached at fetch time
     summary: Optional[str] = None        # Pre-computed summary — skips BART re-run in analyze_bias
+    model_version: str = "v2"            # "v1" = 83% 3-epoch model, "v2" = 96% 10-epoch model
     action: str = "analyze_bias"
 
 @app.get("/")
@@ -254,39 +266,40 @@ def analyze(request: AnalysisRequest):
         if not content:
             return {"error": "Could not retrieve content for this article."}
 
-        # 🔹 Graceful bias-model state handling
-        # - If HF_TOKEN is configured and model is still Loading (or stuck Loading),
-        #   ENGAGE REMOTE FALLBACK immediately so user NEVER sees 503 in production.
-        # - 503 is returned ONLY when no HF client fallback is available.
-        bias_elapsed = service.get_loading_elapsed("bias")
-        bias_stuck = service.is_stuck_loading("bias", 180)
+        # 🔹 Select model version requested
+        model_version = request.model_version if request.model_version in ("v1", "v2") else "v2"
 
-        if service.bias_model_status == "Loading":
+        # 🔹 Graceful bias-model state handling
+        # Route status/model references based on selected version
+        active_status = service.bias_model_v1_status if model_version == "v1" else service.bias_model_status
+        bias_elapsed = service.get_loading_elapsed("bias" if model_version == "v2" else "bias_v1")
+        bias_stuck = service.is_stuck_loading("bias" if model_version == "v2" else "bias_v1", 180)
+
+        if active_status == "Loading":
             # Auto-transition stuck Loading (>3 min) to Error
             if bias_stuck:
-                import time as _t
-                err_msg = f"Auto-transition bias Loading->Error after {bias_elapsed:.0f}s stuck. Contention or OOM in background thread."
+                err_msg = f"Auto-transition bias {model_version} Loading->Error after {bias_elapsed:.0f}s stuck."
                 print(f"SAFETY: {err_msg}", file=sys.stderr)
-                service.bias_model_status = "Error"
-                service.bias_model_error = err_msg
-                service.bias_load_started_at = None
+                if model_version == "v1":
+                    service.bias_model_v1_status = "Error"
+                    service.bias_model_v1_error = err_msg
+                else:
+                    service.bias_model_status = "Error"
+                    service.bias_model_error = err_msg
+                    service.bias_load_started_at = None
 
-            # Decide whether remote fallback can cover Loading state:
             if service.hf_client is not None:
-                # HF remote available → skip 503 entirely. User gets results now.
-                use_remote_due_to_loading = (service.bias_model_status == "Loading")
+                use_remote_due_to_loading = (active_status == "Loading")
                 if use_remote_due_to_loading:
-                    print(f"Loading-state remote bias fallback engaged (elapsed={bias_elapsed:.1f}s; stuck={bias_stuck}). Serving via HF Inference API.", file=sys.stderr)
+                    print(f"Loading-state remote fallback for {model_version} (elapsed={bias_elapsed:.1f}s).", file=sys.stderr)
             else:
-                # No HF client → must return 503 with actionable hint
                 return JSONResponse(
                     status_code=503,
                     content={
-                        "error": "Bias detection model is still loading in the background.",
-                        "hint": "Retry in 30-60 seconds. First cold start downloads weights from Hugging Face. Set HF_TOKEN to enable instant remote fallback.",
-                        "bias_model_status": service.bias_model_status,
+                        "error": f"Bias model {model_version} is still loading.",
+                        "hint": "Retry in 30-60 seconds.",
+                        "bias_model_status": active_status,
                         "bias_loading_elapsed_s": bias_elapsed,
-                        "summarizer_status": service.summarizer_status,
                         "hf_remote_available": False
                     }
                 )
@@ -294,7 +307,12 @@ def analyze(request: AnalysisRequest):
             use_remote_due_to_loading = False
 
         if not service.bias_model and service.bias_model_status != "Error" and not use_remote_due_to_loading:
-            service.load_local_bias_model()
+            service.load_local_bias_model("v2")
+        if not service.bias_model_v1 and service.bias_model_v1_status != "Error" and model_version == "v1":
+            service.load_local_bias_model("v1")
+
+        active_model_error = service.bias_model_v1_error if model_version == "v1" else service.bias_model_error
+        active_model_loaded = service.bias_model_v1 if model_version == "v1" else service.bias_model
 
         ####################################################################
         # EMERGENCY REMOTE FALLBACK:
@@ -303,7 +321,7 @@ def analyze(request: AnalysisRequest):
         # In either case, use zero-shot classification remotely so users NEVER see 503 in production.
         ####################################################################
         use_remote_bias_fallback = (
-            ((service.bias_model_status == "Error") and (service.hf_client is not None))
+            ((active_status == "Error") and (service.hf_client is not None))
             or use_remote_due_to_loading
         )
 
@@ -334,7 +352,7 @@ def analyze(request: AnalysisRequest):
             # PATH A: Local bias model works (99% of the time after first boot)
             ################################################################
             if not use_remote_bias_fallback:
-                batch_results = service.rate_bias_batch(analysis_sentences)
+                batch_results = service.rate_bias_batch(analysis_sentences, model_version=model_version)
                 is_offline = all(res.get("label") in ["Offline", "Error"] for res in batch_results)
 
                 if is_offline and service.hf_client is not None:
@@ -456,8 +474,9 @@ def analyze(request: AnalysisRequest):
             level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.50 else "Low"
             
             sample_text = " ".join(analysis_sentences[:8])
-            if not use_remote_bias_fallback and service.bias_model and service.bias_tokenizer:
-                top_words = service.get_top_biased_words_gradient(sample_text, top_k=8)
+            if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
+                top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
+                top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
             else:
                 from collections import Counter
                 import re
@@ -472,6 +491,8 @@ def analyze(request: AnalysisRequest):
                 "bias_level": level,
                 "bias_score": round(avg_bias_prob * 100, 1),
                 "summary": summary,
+                "model_version": model_version,
+                "model_label": "BERT-BABE v1 (83% acc, 3-epoch)" if model_version == "v1" else "BERT-BABE v2 (96% acc, 10-epoch)",
                 "explanation": f"Analysis completed across {len(analysis_sentences)} sentences. Overall bias score represents the average linguistic bias detected.",
                 "top_words": top_words,
                 "sentence_breakdown": sentence_results,

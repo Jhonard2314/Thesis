@@ -38,6 +38,14 @@ export default function Home() {
     localStorage.setItem('theme', newDark ? 'dark' : 'light');
   };
 
+  /* ── Model version state ──────────────────────────────────────────────── */
+  const [modelVersion, setModelVersion] = useState('v2');
+
+  const MODEL_INFO = {
+    v1: { label: 'BERT-BABE v1', detail: '83% acc · 3-epoch', color: '#d97706' },
+    v2: { label: 'BERT-BABE v2', detail: '96% acc · 10-epoch', color: '#0FA89A' },
+  };
+
   /* ── Search state ─────────────────────────────────────────────────────── */
   const [searchQuery, setSearchQuery]       = useState('');
   const [activeQuery, setActiveQuery]       = useState('');
@@ -118,7 +126,7 @@ export default function Home() {
     try {
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: selectedArticle.url, content: biasData?.full_content, summary: biasData?.summary, snippet: selectedArticle.description || '', scraped_content: selectedArticle.scraped_content || null, action: 'analyze_bias' }),
+        body: JSON.stringify({ url: selectedArticle.url, content: biasData?.full_content, summary: biasData?.summary, snippet: selectedArticle.description || '', scraped_content: selectedArticle.scraped_content || null, model_version: modelVersion, action: 'analyze_bias' }),
       });
       const d2 = await r2.json();
       if (d2.error) { setBiasError(d2.error); return; }
@@ -136,6 +144,14 @@ export default function Home() {
     setTimeout(() => analyzeInputRef.current?.focus(), 50);
   };
 
+  const switchModel = (v) => {
+    setModelVersion(v);
+    // Clear results so user reruns with new model
+    setAnalyzeSummary(null); setAnalyzeBias(null);
+    setAnalyzeStage(s => s === 'done' || s === 'error' ? 'idle' : s);
+    setBiasData(d => d ? { ...d, bias_level: undefined, bias_score: undefined, sentence_breakdown: undefined, top_words: undefined } : d);
+  };
+
   const analyzeRunFull = async (content, url = null) => {
     setAnalyzeStage('analyzing'); setAnalyzeSummary(null); setAnalyzeBias(null);
     setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -148,7 +164,7 @@ export default function Home() {
         }),
         fetch('/api/bias', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, action: 'analyze_bias', ...(url ? { url } : {}) }),
+          body: JSON.stringify({ content, action: 'analyze_bias', model_version: modelVersion, ...(url ? { url } : {}) }),
         }),
       ]);
       const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
@@ -183,7 +199,7 @@ export default function Home() {
       // Step 2: bias analysis — pass the summary so backend skips BART re-run
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed, content: d.full_content, summary: d.summary, action: 'analyze_bias' }),
+        body: JSON.stringify({ url: trimmed, content: d.full_content, summary: d.summary, model_version: modelVersion, action: 'analyze_bias' }),
       });
       const d2 = await r2.json();
       if (d2.error) { setAnalyzeError(d2.error); setAnalyzeStage('error'); return; }
@@ -225,6 +241,22 @@ export default function Home() {
           {/* Search bar */}
           <div className="ml-auto flex items-center gap-2">
             
+            {/* Model version switcher */}
+            <div className="flex items-center rounded-lg overflow-hidden text-xs font-bold"
+              style={{ border: '1px solid var(--border)' }}>
+              {['v1', 'v2'].map(v => (
+                <button key={v} onClick={() => switchModel(v)}
+                  className="px-3 py-1.5 transition-colors"
+                  style={modelVersion === v
+                    ? { background: MODEL_INFO[v].color, color: '#fff' }
+                    : { background: 'var(--bg-card-alt)', color: 'var(--text-muted)' }
+                  }>
+                  {MODEL_INFO[v].label}
+                  <span className="ml-1 font-normal opacity-75 text-[10px]">{MODEL_INFO[v].detail}</span>
+                </button>
+              ))}
+            </div>
+
             {/* Theme toggle */}
             <button onClick={toggleTheme}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
@@ -275,6 +307,14 @@ export default function Home() {
           <h2 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
             Analyze an Article
           </h2>
+          {/* Active model indicator */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+              style={{ background: MODEL_INFO[modelVersion].color + '20', color: MODEL_INFO[modelVersion].color, border: `1px solid ${MODEL_INFO[modelVersion].color}40` }}>
+              {MODEL_INFO[modelVersion].label} · {MODEL_INFO[modelVersion].detail}
+            </span>
+            <span className="text-[10px]" style={{ color: 'var(--text-subtle)' }}>active model</span>
+          </div>
 
           {/* Input bar */}
             <div className={`flex gap-3 rounded-2xl px-4 py-3 ${analyzeInput.length > 120 ? 'items-start' : 'items-center'}`}
@@ -418,6 +458,9 @@ export default function Home() {
                       <>
                         <div className="text-5xl font-black mb-1" style={{ color: getBiasColor(analyzeBias.bias_level) }}>{analyzeBias.bias_score}%</div>
                         <span className={`inline-block px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-3 ${getBiasBadge(analyzeBias.bias_level)}`}>Bias Score</span>
+                        <p className="text-[9px] mb-1 font-semibold" style={{ color: MODEL_INFO[modelVersion].color }}>
+                          {MODEL_INFO[modelVersion].label} · {MODEL_INFO[modelVersion].detail}
+                        </p>
                         <p className="text-xs leading-relaxed" style={{ color: '#B8C5D6' }}>{analyzeBias.explanation}</p>
                       </>
                     ) : (
@@ -579,7 +622,7 @@ export default function Home() {
 
       <BiasModal isOpen={isModalOpen} onClose={handleCloseModal} article={selectedArticle}
         biasData={biasData} isLoading={biasLoading} loadingStage={loadingStage}
-        error={biasError} onRunBiasAnalysis={handleRunBiasAnalysis} />
+        error={biasError} onRunBiasAnalysis={handleRunBiasAnalysis} modelVersion={modelVersion} modelInfo={MODEL_INFO} />
       </div>
     </>
   );

@@ -20,6 +20,7 @@ export async function POST(request) {
     const action = body.action || 'analyze_bias';
     const existingContent = body.content || body.full_content;
     const precomputedSummary = body.summary || null;
+    const modelVersion = body.model_version || 'v2';
 
     if (!articleUrl && !existingContent) {
       return NextResponse.json({ error: 'Article URL or content is required' }, { status: 400 });
@@ -38,6 +39,7 @@ export async function POST(request) {
             url: articleUrl,
             content: existingContent,
             summary: precomputedSummary,
+            model_version: modelVersion,
             action: action
           }),
           signal: controller.signal

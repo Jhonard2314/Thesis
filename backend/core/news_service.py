@@ -68,6 +68,13 @@ class NewsService:
         self.bias_model_error = None
         self.bias_load_started_at = None
 
+        # v1 model (83%, 3-epoch, parquet split)
+        self.bias_model_v1 = None
+        self.bias_tokenizer_v1 = None
+        self.bias_model_v1_status = "Idle"
+        self.bias_model_v1_error = None
+        self.bias_model_v1_load_started_at = None
+
         self.summarizer_model = None
         self.summarizer_tokenizer = None
         self.summarizer_status = "Idle"
@@ -83,6 +90,10 @@ class NewsService:
             if self.bias_model_status == "Loading" and self.bias_load_started_at:
                 return _time.time() - self.bias_load_started_at
             return None
+        elif model == "bias_v1":
+            if self.bias_model_v1_status == "Loading" and self.bias_model_v1_load_started_at:
+                return _time.time() - self.bias_model_v1_load_started_at
+            return None
         elif model == "summarizer":
             if self.summarizer_status == "Loading" and self.summarizer_load_started_at:
                 return _time.time() - self.summarizer_load_started_at
@@ -94,91 +105,120 @@ class NewsService:
         elapsed = self.get_loading_elapsed(model)
         return elapsed is not None and elapsed > threshold_seconds
 
-    def load_local_bias_model(self):
-        """Attempts to load the local BERT model for bias detection. Updates self.bias_model_status on all paths."""
+    def load_local_bias_model(self, version="v2"):
+        """Loads the specified BERT bias model. version='v1' (83%) or 'v2' (96%)."""
         import time as _time
-        self.bias_model_status = "Loading"
-        self.bias_model_error = None
-        self.bias_load_started_at = _time.time()
+
+        # Route to correct state variables
+        if version == "v1":
+            if self.bias_model_v1_status == "Loaded":
+                return True
+            self.bias_model_v1_status = "Loading"
+            self.bias_model_v1_error = None
+            self.bias_model_v1_load_started_at = _time.time()
+            model_filename = "bert_babe_v1_83pct.pt"
+        else:
+            if self.bias_model_status == "Loaded":
+                return True
+            self.bias_model_status = "Loading"
+            self.bias_model_error = None
+            self.bias_load_started_at = _time.time()
+            model_filename = "bert_babe_v2_96pct.pt"
+
         try:
             base_path = os.path.dirname(os.path.abspath(__file__))
-            
             backend_dir_local = os.path.dirname(base_path)
             project_root_local = os.path.dirname(backend_dir_local)
+
             possible_paths = [
-                os.path.join(backend_dir_local, "models", "bert_babe.pt"),
-                os.path.join(backend_dir_local, "bias_module", "models", "bert_babe.pt"),
-                os.path.join(project_root_local, "backend", "models", "bert_babe.pt"),
-                os.path.join(os.getcwd(), "backend", "models", "bert_babe.pt"),
-                os.path.join(os.getcwd(), "bert_babe.pt"),
-                os.path.join(base_path, "bert_babe.pt"),
-                "/app/backend/models/bert_babe.pt",
-                "/app/bert_babe.pt"
+                os.path.join(backend_dir_local, "models", model_filename),
+                os.path.join(project_root_local, "backend", "models", model_filename),
+                os.path.join(os.getcwd(), "backend", "models", model_filename),
+                os.path.join(os.getcwd(), model_filename),
+                f"/app/backend/models/{model_filename}",
+                f"/app/{model_filename}",
             ]
-            
-            print(f"DEBUG: base_path={base_path}", file=sys.stderr)
-            print(f"DEBUG: cwd={os.getcwd()}", file=sys.stderr)
-            
+
+            print(f"DEBUG [{version}]: Looking for {model_filename}", file=sys.stderr)
             model_path = None
             for p in possible_paths:
                 exists = os.path.exists(p)
-                print(f"DEBUG: Checking path {p} - exists={exists}", file=sys.stderr)
+                print(f"DEBUG [{version}]: {p} -> exists={exists}", file=sys.stderr)
                 if exists:
                     model_path = p
                     break
-            
-            if model_path:
-                try:
-                    from bias_module import config as bias_config
-                    model_name = bias_config.MODEL_NAME
-                except ImportError:
-                    model_name = "bert-base-uncased"
-                
-                print(f"DEBUG: Loading tokenizer + bert-base-uncased skeleton from HF (cached after first run)...", file=sys.stderr)
-                self.bias_tokenizer = BertTokenizer.from_pretrained(model_name)
-                self.bias_model = BertForSequenceClassification.from_pretrained(
-                    model_name,
-                    num_labels=2
-                )
-                
-                print(f"DEBUG: Loading state_dict from {model_path} (map_location=cpu)...", file=sys.stderr)
-                self.bias_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-                self.bias_model.eval()
-                print(f"Local bias model loaded successfully from {model_path}", file=sys.stderr)
+
+            if not model_path:
+                msg = f"Model file '{model_filename}' not found in any expected location."
+                print(msg, file=sys.stderr)
+                if version == "v1":
+                    self.bias_model_v1_status = "Error"
+                    self.bias_model_v1_error = msg
+                    self.bias_model_v1_load_started_at = None
+                else:
+                    self.bias_model_status = "Error"
+                    self.bias_model_error = msg
+                    self.bias_load_started_at = None
+                return False
+
+            try:
+                from bias_module import config as bias_config
+                model_name = bias_config.MODEL_NAME
+            except ImportError:
+                model_name = "bert-base-uncased"
+
+            print(f"DEBUG [{version}]: Loading tokenizer from {model_name}...", file=sys.stderr)
+            tokenizer = BertTokenizer.from_pretrained(model_name)
+            model = BertForSequenceClassification.from_pretrained(model_name, num_labels=2)
+
+            print(f"DEBUG [{version}]: Loading state_dict from {model_path}...", file=sys.stderr)
+            model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+            model.eval()
+
+            if version == "v1":
+                self.bias_model_v1 = model
+                self.bias_tokenizer_v1 = tokenizer
+                self.bias_model_v1_status = "Loaded"
+                self.bias_model_v1_load_started_at = None
+                print(f"Bias model v1 (83%) loaded from {model_path}", file=sys.stderr)
+            else:
+                self.bias_model = model
+                self.bias_tokenizer = tokenizer
                 self.bias_model_status = "Loaded"
                 self.bias_load_started_at = None
-                return True
-            else:
-                msg = f"Model file 'bert_babe.pt' not found in any expected location. Checked {len(possible_paths)} paths."
-                print(msg, file=sys.stderr)
-                self.bias_model_status = "Error"
-                self.bias_model_error = msg
-                self.bias_model = None
-                self.bias_tokenizer = None
-                self.bias_load_started_at = None
-                return False
+                print(f"Bias model v2 (96%) loaded from {model_path}", file=sys.stderr)
+            return True
+
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
-            msg = f"Error loading local bias model: {e}"
+            msg = f"Error loading bias model {version}: {e}"
             print(msg, file=sys.stderr)
             print(tb, file=sys.stderr)
-            self.bias_model_status = "Error"
-            self.bias_model_error = msg + "\n" + tb
-            self.bias_model = None
-            self.bias_tokenizer = None
-            self.bias_load_started_at = None
+            if version == "v1":
+                self.bias_model_v1 = None
+                self.bias_tokenizer_v1 = None
+                self.bias_model_v1_status = "Error"
+                self.bias_model_v1_error = msg + "\n" + tb
+                self.bias_model_v1_load_started_at = None
+            else:
+                self.bias_model = None
+                self.bias_tokenizer = None
+                self.bias_model_status = "Error"
+                self.bias_model_error = msg + "\n" + tb
+                self.bias_load_started_at = None
             return False
 
-    def get_top_biased_words_gradient(self, text, top_k=5):
-        """
-        Calculates word importance using gradients, matching the formula in bias_module/predict.py.
-        """
-        if not self.bias_model or not self.bias_tokenizer:
+    def get_top_biased_words_gradient(self, text, top_k=5, model_version="v2"):
+        """Calculates word importance using gradients for the selected model version."""
+        model = self.bias_model_v1 if model_version == "v1" else self.bias_model
+        tokenizer = self.bias_tokenizer_v1 if model_version == "v1" else self.bias_tokenizer
+
+        if not model or not tokenizer:
             return []
 
         try:
-            encoding = self.bias_tokenizer(
+            encoding = tokenizer(
                 text,
                 return_tensors="pt",
                 truncation=True,
@@ -189,33 +229,24 @@ class NewsService:
             input_ids = encoding["input_ids"]
             attention_mask = encoding["attention_mask"]
 
-            # Enable gradients ONLY for the embedding layer to save memory and time
-            self.bias_model.zero_grad()
-            
-            # We only need gradients for the word embeddings to calculate importance
-            for param in self.bias_model.bert.embeddings.word_embeddings.parameters():
+            model.zero_grad()
+            for param in model.bert.embeddings.word_embeddings.parameters():
                 param.requires_grad = True
 
-            # Use torch.enable_grad() since we might be inside a torch.no_grad() block
             with torch.enable_grad():
-                outputs = self.bias_model(input_ids=input_ids, attention_mask=attention_mask)
+                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = outputs.logits
-
-                # Focus on "biased" class (index 1)
                 bias_logit = logits[0, 1]
                 bias_logit.backward()
 
-            # Get gradients from embedding layer
-            embedding_grad = self.bias_model.bert.embeddings.word_embeddings.weight.grad
+            embedding_grad = model.bert.embeddings.word_embeddings.weight.grad
             if embedding_grad is None:
                 return []
 
             token_ids = input_ids[0]
             token_grads = embedding_grad[token_ids]
-
-            # Importance score = L2 norm (as used in bias_module/predict.py)
             scores = torch.norm(token_grads, dim=1)
-            tokens = self.bias_tokenizer.convert_ids_to_tokens(token_ids)
+            tokens = tokenizer.convert_ids_to_tokens(token_ids)
 
             # Filter tokens
             filtered = []
@@ -249,40 +280,38 @@ class NewsService:
         else:
             return "Interpretation: Likely Factual"
 
-    def rate_bias_batch(self, sentences):
-        """
-        Rates bias for multiple sentences. Uses local model if available.
-        """
+    def rate_bias_batch(self, sentences, model_version="v2"):
+        """Rates bias for multiple sentences using the selected model version."""
         if not sentences:
             return []
 
-        # 1. Try Local Model first
-        if not self.bias_model:
-            self.load_local_bias_model()
+        model = self.bias_model_v1 if model_version == "v1" else self.bias_model
+        tokenizer = self.bias_tokenizer_v1 if model_version == "v1" else self.bias_tokenizer
 
-        if self.bias_model and self.bias_tokenizer:
+        # Lazy-load if not yet loaded
+        if not model:
+            self.load_local_bias_model(model_version)
+            model = self.bias_model_v1 if model_version == "v1" else self.bias_model
+            tokenizer = self.bias_tokenizer_v1 if model_version == "v1" else self.bias_tokenizer
+
+        if model and tokenizer:
             try:
-                # Use a larger max_length for better sentence coverage (up to BERT's 512 limit)
-                inputs = self.bias_tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=256)
-                
+                inputs = tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=256)
                 with torch.no_grad():
-                    outputs = self.bias_model(**inputs)
+                    outputs = model(**inputs)
                     probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                    
                     results = []
                     for i, prob in enumerate(probs):
                         bias_score = prob[1].item()
                         label = "Biased" if bias_score > 0.5 else "Factual"
-                        reasoning = self.get_bias_reasoning(sentences[i], label, bias_score)
-                        
                         results.append({
                             "label": label,
                             "score": bias_score,
-                            "reasoning": reasoning
+                            "reasoning": self.get_bias_reasoning(sentences[i], label, bias_score)
                         })
                     return results
             except Exception as e:
-                print(f"Local Batch Analysis Error: {e}", file=sys.stderr)
+                print(f"Batch analysis error [{model_version}]: {e}", file=sys.stderr)
 
         return [{"label": "Offline", "score": 0.0, "reasoning": "Model failed or is offline."} for _ in sentences]
 
