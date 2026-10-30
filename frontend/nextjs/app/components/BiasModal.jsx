@@ -133,25 +133,40 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                   )}
                 </div>
 
-                {/* Top biased words with explanations */}
+                {/* Top biased words with explanations and context */}
                 {biasData?.top_words?.length > 0 && biasData.bias_level !== 'Low' && (
                   <div>
                     <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Key Biased Markers</h4>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {biasData.top_words.map((item, idx) => (
                         <div key={idx} 
-                          className="rounded-lg p-2 transition-all hover:bg-red-50"
+                          className="rounded-lg p-3 transition-all hover:bg-red-50"
                           style={{ 
                             background: 'rgba(220,38,38,0.06)', 
                             border: '1px solid rgba(220,38,38,0.2)'
                           }}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[12px] font-bold text-red-600">{item.word}</span>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[13px] font-bold text-red-600">{item.word}</span>
                             <span className="text-[9px] text-red-400 font-mono bg-red-50 px-1.5 py-0.5 rounded">{item.score}</span>
                           </div>
-                          <p className="text-[10px] leading-relaxed italic" style={{ color: 'var(--text-muted)' }}>
-                            {item.reason || "Biased language detected by model"}
-                          </p>
+                          
+                          {item.context && (
+                            <div className="mb-2 p-2 rounded" style={{ background: 'rgba(220,38,38,0.05)', borderLeft: '2px solid rgba(220,38,38,0.4)' }}>
+                              <p className="text-[9px] uppercase tracking-wider font-bold mb-1" style={{ color: 'var(--text-muted)' }}>Found in sentence:</p>
+                              <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                                "{item.context}"
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-start gap-1.5">
+                            <svg className="w-3 h-3 mt-0.5 shrink-0" style={{ color: 'var(--text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p className="text-[10px] leading-relaxed italic" style={{ color: 'var(--text-muted)' }}>
+                              {item.reason || "Biased language detected by model"}
+                            </p>
+                          </div>
                         </div>
                       ))}
                     </div>

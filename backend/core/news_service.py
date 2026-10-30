@@ -210,7 +210,7 @@ class NewsService:
             return False
 
     def get_top_biased_words_gradient(self, text, top_k=5, model_version="v2"):
-        """Calculates word importance using gradients for the selected model version."""
+        """Calculates word importance using gradients and extracts sentence context."""
         model = self.bias_model_v1 if model_version == "v1" else self.bias_model
         tokenizer = self.bias_tokenizer_v1 if model_version == "v1" else self.bias_tokenizer
 
@@ -248,6 +248,11 @@ class NewsService:
             scores = torch.norm(token_grads, dim=1)
             tokens = tokenizer.convert_ids_to_tokens(token_ids)
 
+            # Split text into sentences for context extraction
+            import re
+            sentences = re.split(r'[.!?]+', text)
+            sentences = [s.strip() for s in sentences if s.strip()]
+
             # Filter tokens
             filtered = []
             for tok, score in zip(tokens, scores):
@@ -264,25 +269,41 @@ class NewsService:
 
             # Sort by importance
             sorted_tokens = sorted(filtered, key=lambda x: x[1], reverse=True)
-            # Add model-based reasoning for each word
+            
+            # Add model-based reasoning and sentence context for each word
             results = []
             for t in sorted_tokens[:top_k]:
                 word = t[0]
                 score = round(t[1] * 100, 2)
                 
+                # Find the sentence containing this word
+                context_sentence = None
+                for sent in sentences:
+                    if word.lower() in sent.lower():
+                        context_sentence = sent[:150] + "..." if len(sent) > 150 else sent
+                        break
+                
+                if not context_sentence:
+                    context_sentence = "Word appears in article context"
+                
                 # Generate explanation based on gradient magnitude (model's learned signal)
                 if score > 200:
-                    reason = f"Model detects very strong bias signal - this word significantly influenced the bias classification ({score:.1f}% activation)"
+                    reason = f"Very strong bias signal ({score:.1f}% activation). In context: \"{context_sentence}\""
                 elif score > 150:
-                    reason = f"Model detects strong bias pattern - high gradient activation suggests opinionated usage ({score:.1f}% activation)"
+                    reason = f"Strong bias pattern detected ({score:.1f}% activation). Found in: \"{context_sentence}\""
                 elif score > 120:
-                    reason = f"Model flags moderate bias signal - word usage deviates from neutral patterns ({score:.1f}% activation)"
+                    reason = f"Moderate bias signal ({score:.1f}% activation). Used in: \"{context_sentence}\""
                 elif score > 100:
-                    reason = f"Model identifies subtle bias marker - elevated gradient suggests non-factual framing ({score:.1f}% activation)"
+                    reason = f"Subtle bias marker ({score:.1f}% activation). Context: \"{context_sentence}\""
                 else:
-                    reason = f"Model detected bias association - gradient analysis shows potential slant ({score:.1f}% activation)"
+                    reason = f"Bias association detected ({score:.1f}% activation). Appears in: \"{context_sentence}\""
                 
-                results.append({"word": word, "score": score, "reason": reason})
+                results.append({
+                    "word": word, 
+                    "score": score, 
+                    "reason": reason,
+                    "context": context_sentence
+                })
             
             return results
         except Exception as e:
