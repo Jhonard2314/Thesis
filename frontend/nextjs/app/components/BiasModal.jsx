@@ -3,8 +3,6 @@
 import { useState } from 'react';
 
 export default function BiasModal({ isOpen, onClose, article, biasData, isLoading, loadingStage, error, onRunBiasAnalysis, modelVersion = 'v2', modelInfo = {} }) {
-  const [hoveredWordIdx, setHoveredWordIdx] = useState(null);
-  
   if (!isOpen) return null;
 
   // Use model info from response if available, fall back to prop
@@ -87,7 +85,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
               <div className="flex flex-col items-center py-8 rounded-xl" style={{ background: 'var(--bg-card)' }}>
                 <div className="w-9 h-9 rounded-full border-2 border-t-transparent animate-spin mb-3" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}/>
                 <p className="text-[10px] font-bold uppercase tracking-widest animate-pulse" style={{ color: 'var(--accent)' }}>
-                  {loadingStage === 'extracting' ? 'Extracting…' : 'Analyzing…'}
+                  {loadingStage === 'extracting' ? 'Extractingâ€¦' : 'Analyzingâ€¦'}
                 </p>
               </div>
             ) : error ? (
@@ -107,7 +105,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                     Bias Score
                   </span>
                   <p className="text-[9px] font-semibold mb-2" style={{ color: activeColor }}>
-                    {activeLabel}{activeDetail ? ` · ${activeDetail}` : ''}
+                    {activeLabel}{activeDetail ? ` Â· ${activeDetail}` : ''}
                   </p>
                   <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{biasData.explanation}</p>
                   
@@ -135,27 +133,18 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                   )}
                 </div>
 
-                {/* Top biased words with explanations */}
+                {/* Top biased words */}
                 {biasData?.top_words?.length > 0 && biasData.bias_level !== 'Low' && (
                   <div>
-                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Key Biased Markers</h4>
-                    <div className="space-y-2">
+                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Key Biased Markers</h4>
+                    <div className="flex flex-wrap gap-1.5">
                       {biasData.top_words.map((item, idx) => (
                         <div key={idx} 
-                          className="rounded-lg p-2 transition-all"
-                          style={{ 
-                            background: hoveredWordIdx === idx ? 'rgba(220,38,38,0.12)' : 'rgba(220,38,38,0.06)', 
-                            border: '1px solid rgba(220,38,38,0.2)'
-                          }}
-                          onMouseEnter={() => setHoveredWordIdx(idx)}
-                          onMouseLeave={() => setHoveredWordIdx(null)}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[12px] font-bold text-red-600">{item.word}</span>
-                            <span className="text-[9px] text-red-400 font-mono bg-red-50 px-1.5 py-0.5 rounded">{item.score}</span>
-                          </div>
-                          <p className="text-[10px] leading-relaxed italic" style={{ color: 'var(--text-muted)' }}>
-                            {item.reason || "Biased language detected by model"}
-                          </p>
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-help transition-all hover:scale-105"
+                          style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}
+                          title={item.reason || "Biased language detected by model"}>
+                          <span className="text-[11px] font-bold text-red-600">{item.word}</span>
+                          <span className="text-[9px] text-red-400 font-mono">{item.score}</span>
                         </div>
                       ))}
                     </div>
@@ -181,16 +170,16 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                     <div className="h-full bg-red-500" style={{ width: '35%' }}/>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-600 font-bold">0% – 50%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-600 font-bold">51% – 70%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-600 font-bold">71% – 100%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-600 font-bold">0% â€“ 50%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-600 font-bold">51% â€“ 70%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-600 font-bold">71% â€“ 100%</span><span className="italic" style={{ color: 'var(--text-muted)' }}>Strongly Biased</span></div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Right panel — article text */}
+          {/* Right panel â€” article text */}
           <div className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--bg-card)' }}>
             <h4 className="text-[9px] font-bold uppercase tracking-widest mb-5" style={{ color: 'var(--text-muted)' }}>Full Article Context</h4>
             <div className="prose prose-sm max-w-none">
