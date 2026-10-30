@@ -959,6 +959,42 @@ class NewsService:
         except Exception:
             return None
 
+    def _clean_article_text(self, text):
+        """Remove timestamps, dates, and metadata from article text."""
+        if not text:
+            return text
+            
+        import re
+        
+        # Remove common timestamp patterns
+        # "3h ago", "11:16 EDT", "Updated at 13:24 EDT", "39m ago", "13.19 EDT", etc.
+        patterns_to_remove = [
+            r'\b\d{1,2}h\s+ago\b',  # "3h ago"
+            r'\b\d{1,2}m\s+ago\b',  # "39m ago"  
+            r'\b\d{1,2}:\d{1,2}\s+[A-Z]{2,4}\b',  # "11:16 EDT", "13:24 BST"
+            r'\b\d{1,2}\.\d{1,2}\s+[A-Z]{2,4}\b',  # "13.19 EDT"
+            r'\bUpdated\s+at\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\b',  # "Updated at 13:24 EDT"
+            r'\bUpdated\s+at\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\s+\d{1,2}[hm]\s+ago\b',  # "Updated at 13:24 EDT 39m ago"
+            r'\bPublished\s+at\s+\d{1,2}[:.]\d{1,2}\b',  # "Published at 11:16"
+            r'\bFrom\s+\d{1,2}h\s+ago\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\b',  # "From 3h ago 11:16 EDT"
+            r'\b\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\s+\d{1,2}[hm]\s+ago\b',  # "13.24 EDT 34m ago"
+            r'\bShare\s+Updated\s+at\s+[^\s]+\s+[^\s]+',  # "Share Updated at ..."
+            r'\bView image in fullscreen\b',  # Image captions
+            r'\bPhotograph:\s+[^\.]+\.',  # "Photograph: John Doe/Reuters"
+            r'\bImage source,\s+[^\n]+',  # BBC image sources
+            r'\bImage caption,\s+[^\n]+',  # BBC image captions
+        ]
+        
+        cleaned = text
+        for pattern in patterns_to_remove:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up multiple spaces and newlines left by removals
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        cleaned = re.sub(r'\n\s*\n+', '\n\n', cleaned)
+        
+        return cleaned.strip()
+
     def get_full_content(self, url, timeout=None):
         """
         Fetch and extract full article text from a URL.
@@ -1007,24 +1043,24 @@ class NewsService:
             article.parse()
             text = article.text.strip()
             if text and len(text) >= 400:
-                return text
+                return self._clean_article_text(text)
 
             # Strategy 2a: BBC-specific extractor (sport pages, live blogs, etc.)
             if is_bbc:
                 bbc_text = self._extract_bbc_article(html_text)
                 if bbc_text:
-                    return bbc_text
+                    return self._clean_article_text(bbc_text)
 
             # Strategy 2b: CNN-specific extractor
             if is_cnn:
                 cnn_text = self._extract_cnn_article(html_text)
                 if cnn_text:
-                    return cnn_text
+                    return self._clean_article_text(cnn_text)
 
             # Strategy 3: __NEXT_DATA__ JSON extraction (BBC, Reuters, CNN, Vox, etc.)
             next_data_text = self._extract_next_data_text(html_text)
             if next_data_text:
-                return next_data_text
+                return self._clean_article_text(next_data_text)
 
             # Strategy 4: Raw <p> tag extraction — last resort
             paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', html_text, re.DOTALL | re.IGNORECASE)
@@ -1037,7 +1073,7 @@ class NewsService:
                     clean_paras.append(text_p)
             p_text = ' '.join(clean_paras).strip()
             if len(p_text) >= 400:
-                return p_text
+                return self._clean_article_text(p_text)
 
             return None
         except requests.exceptions.Timeout:
