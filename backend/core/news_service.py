@@ -264,7 +264,27 @@ class NewsService:
 
             # Sort by importance
             sorted_tokens = sorted(filtered, key=lambda x: x[1], reverse=True)
-            return [{"word": t[0], "score": round(t[1] * 100, 2)} for t in sorted_tokens[:top_k]]
+            # Add model-based reasoning for each word
+            results = []
+            for t in sorted_tokens[:top_k]:
+                word = t[0]
+                score = round(t[1] * 100, 2)
+                
+                # Generate explanation based on gradient magnitude (model's learned signal)
+                if score > 200:
+                    reason = f"Model detects very strong bias signal - this word significantly influenced the bias classification ({score:.1f}% activation)"
+                elif score > 150:
+                    reason = f"Model detects strong bias pattern - high gradient activation suggests opinionated usage ({score:.1f}% activation)"
+                elif score > 120:
+                    reason = f"Model flags moderate bias signal - word usage deviates from neutral patterns ({score:.1f}% activation)"
+                elif score > 100:
+                    reason = f"Model identifies subtle bias marker - elevated gradient suggests non-factual framing ({score:.1f}% activation)"
+                else:
+                    reason = f"Model detected bias association - gradient analysis shows potential slant ({score:.1f}% activation)"
+                
+                results.append({"word": word, "score": score, "reason": reason})
+            
+            return results
         except Exception as e:
             print(f"Gradient Calculation Error: {e}", file=sys.stderr)
             return []
