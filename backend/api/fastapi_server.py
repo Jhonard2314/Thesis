@@ -502,6 +502,26 @@ def analyze(request: AnalysisRequest):
 
             # Add explanations for why each word is biased - comprehensive pattern matching
             bias_word_patterns = {
+                                "dismissive": {
+                    "words": ["dismissal", "dismissed", "reject", "rejection", "ignore", "disregard"],
+                    "reason": "Dismissive language that minimizes opposing viewpoints"
+                },
+                "aftermath": {
+                    "words": ["aftermath", "fallout", "consequences", "repercussions", "impact"],
+                    "reason": "Consequence framing that emphasizes negative outcomes"
+                },
+                "temperature": {
+                    "words": ["cold", "hot", "warm", "cool", "heated", "chilly"],
+                    "reason": "Temperature metaphor used to characterize tone or relationships"
+                },
+                "warning_language": {
+                    "words": ["warning", "caution", "alert", "danger", "risk", "hazard"],
+                    "reason": "Cautionary language that may heighten concern or urgency"
+                },
+                "names_places": {
+                    "words": ["disneyland", "mike", "trump", "biden", "washington", "hollywood"],
+                    "reason": "Named entity that may carry preconceived associations or stereotypes"
+                },
                 "emotional": {
                     "words": ["outrageous", "shocking", "devastating", "horrific", "stunning", "unbelievable", "dramatically", 
                              "tragic", "heartbreaking", "alarming", "frightening", "terrifying", "rage", "fury", "anger"],
@@ -560,7 +580,21 @@ def analyze(request: AnalysisRequest):
             # Apply pattern matching to each word
             for word_obj in top_words:
                 word_lower = word_obj["word"].lower()
-                reason = "Model detected bias pattern in this word's usage context"
+                # Smart fallback based on word characteristics
+                if word_lower.endswith(('ism', 'ist')):
+                    reason = "Ideological label that may frame subjects with political bias"
+                elif word_lower.endswith(('ing', 'ed')) and len(word_lower) > 6:
+                    reason = "Action verb that may indicate opinionated framing or narrative bias"
+                elif word_lower[0].isupper() or word_lower.istitle():
+                    reason = "Proper noun flagged by model - may carry loaded associations in context"
+                elif any(char.isdigit() for char in word_lower):
+                    reason = "Numerical reference that may emphasize or de-emphasize significance"
+                elif word_obj["score"] > 150:
+                    reason = "Very high model confidence - strong bias signal detected in usage pattern"
+                elif word_obj["score"] > 120:
+                    reason = "High model activation - word usage deviates from neutral reporting patterns"
+                else:
+                    reason = "Model detected subtle bias in how this word is used contextually"
                 
                 # Check against all categories
                 matched = False
