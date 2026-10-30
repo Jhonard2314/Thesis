@@ -500,61 +500,86 @@ def analyze(request: AnalysisRequest):
                     for tw in top_words:
                         tw["remote_fallback"] = True
 
-            # Add explanations for why each word is biased
+            # Add explanations for why each word is biased - comprehensive pattern matching
             bias_word_patterns = {
-                "emotional": ["outrageous", "shocking", "devastating", "horrific", "stunning", "unbelievable", "dramatically"],
-                "subjective": ["obviously", "clearly", "undoubtedly", "certainly", "definitely"],
-                "loaded": ["radical", "extreme", "dangerous", "threat", "crisis", "disaster", "slammed", "blasted"],
-                "judgmental": ["terrible", "horrible", "awful", "ridiculous", "absurd", "stupid", "traitor", "confronted"]
+                "emotional": {
+                    "words": ["outrageous", "shocking", "devastating", "horrific", "stunning", "unbelievable", "dramatically", 
+                             "tragic", "heartbreaking", "alarming", "frightening", "terrifying", "rage", "fury", "anger"],
+                    "reason": "Emotional language that appeals to feelings rather than presenting facts"
+                },
+                "subjective": {
+                    "words": ["obviously", "clearly", "undoubtedly", "certainly", "definitely", "surely", "plainly", 
+                             "evidently", "apparent", "brilliant", "perfect", "ideal", "best", "worst"],
+                    "reason": "Subjective opinion presented as objective fact"
+                },
+                "loaded": {
+                    "words": ["radical", "extreme", "dangerous", "threat", "crisis", "disaster", "catastrophe",
+                             "scheme", "plot", "regime", "propaganda"],
+                    "reason": "Loaded terminology with strong negative connotation"
+                },
+                "sensational": {
+                    "words": ["slammed", "blasted", "destroyed", "crushed", "demolished", "annihilated", "explosive",
+                             "bombshell", "shocking", "stunning"],
+                    "reason": "Sensational language that exaggerates for dramatic effect"
+                },
+                "judgmental": {
+                    "words": ["terrible", "horrible", "awful", "ridiculous", "absurd", "stupid", "idiotic", "foolish",
+                             "traitor", "villain", "hero", "corrupt"],
+                    "reason": "Judgmental language expressing personal value judgment"
+                },
+                "partisan": {
+                    "words": ["liberal", "conservative", "leftist", "rightist", "socialist", "fascist", "communist"],
+                    "reason": "Political label often used to frame subjects negatively"
+                },
+                "fear_mongering": {
+                    "words": ["chaos", "collapse", "doom", "destruction", "apocalypse", "nightmare", "horror"],
+                    "reason": "Fear-inducing language that heightens anxiety"
+                },
+                "combat": {
+                    "words": ["attack", "assault", "battle", "war", "fight", "combat", "clash", "confronted", "hit"],
+                    "reason": "Combat metaphors that frame issues as conflicts"
+                },
+                "economic_bias": {
+                    "words": ["budget", "spending", "cost", "expensive", "cheap", "waste", "taxpayer"],
+                    "reason": "Economic framing that emphasizes financial impact over other considerations"
+                },
+                "investigative": {
+                    "words": ["probe", "investigation", "scandal", "controversy", "allegation", "accused"],
+                    "reason": "Language suggesting wrongdoing before facts are established"
+                },
+                "location_context": {
+                    "words": ["spot", "area", "location", "burnham", "ocean", "city", "town"],
+                    "reason": "Geographic term that may carry implicit associations or context"
+                },
+                "analysis_framing": {
+                    "words": ["analysis", "report", "study", "research", "data", "findings"],
+                    "reason": "Framing word that influences how information is received"
+                }
             }
             
+            # Apply pattern matching to each word
             for word_obj in top_words:
                 word_lower = word_obj["word"].lower()
-                reason = "High model activation - indicates potential bias"
+                reason = "Model detected bias pattern in this word's usage context"
                 
-                # Add context-aware explanations
-                for category, word_list in bias_word_patterns.items():
-                    if word_lower in word_list or any(w in word_lower for w in word_list):
-                        if category == "emotional":
-                            reason = "Emotional intensifier - appeals to feelings rather than facts"
-                        elif category == "subjective":
-                            reason = "Subjective assertion - presents opinion as certainty"
-                        elif category == "loaded":
-                            reason = "Loaded terminology - carries strong negative connotation"
-                        elif category == "judgmental":
-                            reason = "Judgmental language - expresses value judgment"
+                # Check against all categories
+                matched = False
+                for category, data in bias_word_patterns.items():
+                    if word_lower in data["words"]:
+                        reason = data["reason"]
+                        matched = True
                         break
                 
-                word_obj["reason"] = reason
-
-            
-            # Add explanations for why each word is biased
-            bias_word_patterns = {
-                "emotional": ["outrageous", "shocking", "devastating", "horrific", "stunning", "unbelievable"],
-                "subjective": ["obviously", "clearly", "undoubtedly", "certainly", "definitely"],
-                "loaded": ["radical", "extreme", "dangerous", "threat", "crisis", "disaster"],
-                "sensational": ["dramatically", "slammed", "blasted", "destroyed", "crushed"],
-                "judgmental": ["terrible", "horrible", "awful", "ridiculous", "absurd", "stupid"]
-            }
-            
-            for word_obj in top_words:
-                word_lower = word_obj["word"].lower()
-                reason = "High gradient activation indicates bias association"
-                
-                # Add context-aware explanations
-                for category, word_list in bias_word_patterns.items():
-                    if word_lower in word_list:
-                        if category == "emotional":
-                            reason = f"Emotional intensifier - appeals to feelings rather than facts"
-                        elif category == "subjective":
-                            reason = f"Subjective claim - presents opinion as fact"
-                        elif category == "loaded":
-                            reason = f"Loaded term - carries strong negative connotation"
-                        elif category == "sensational":
-                            reason = f"Sensational language - exaggerates for dramatic effect"
-                        elif category == "judgmental":
-                            reason = f"Judgmental language - expresses personal evaluation"
-                        break
+                # If no exact match, check for partial matches (word contains pattern or vice versa)
+                if not matched:
+                    for category, data in bias_word_patterns.items():
+                        for pattern_word in data["words"]:
+                            if pattern_word in word_lower or word_lower in pattern_word:
+                                reason = data["reason"] + f" (contains '{pattern_word}')"
+                                matched = True
+                                break
+                        if matched:
+                            break
                 
                 word_obj["reason"] = reason
             
