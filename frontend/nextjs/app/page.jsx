@@ -585,7 +585,7 @@ export default function Home() {
 
       <BiasModal isOpen={isModalOpen} onClose={handleCloseModal} article={selectedArticle}
         biasData={biasData} isLoading={biasLoading} loadingStage={loadingStage}
-        error={biasError} onRunBiasAnalysis={handleRunBiasAnalysis} modelVersion={modelVersion} modelInfo={MODEL_INFO} />
+        error={biasError} onRunBiasAnalysis={handleRunBiasAnalysis} modelVersion={modelVersion} />
       </div>
     </>
   );
