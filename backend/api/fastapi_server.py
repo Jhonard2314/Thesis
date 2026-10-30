@@ -467,13 +467,25 @@ def analyze(request: AnalysisRequest):
             
             if level == "High":
                 interpretation = f"This article exhibits strong linguistic bias across {biased_count} of {len(batch_results)} analyzed sentences ({round(biased_count/len(batch_results)*100, 1)}%). The language contains significant emotional framing, subjective opinions, or loaded terminology that deviates from neutral reporting standards."
-                bias_indicators = ["Highly emotional language", "Strong subjective framing", "Persuasive rhetoric detected"]
+                bias_indicators = [
+                    f"{biased_count} of {len(batch_results)} sentences flagged as biased",
+                    "Strong emotional or loaded language throughout",
+                    "Opinion-based framing detected"
+                ]
             elif level == "Medium":
                 interpretation = f"This article shows moderate bias in {biased_count} of {len(batch_results)} sentences ({round(biased_count/len(batch_results)*100, 1)}%). While some factual reporting is present, the language includes noticeable opinion-based phrasing or emotionally charged terms that suggest editorial perspective."
-                bias_indicators = ["Mixed factual and opinion content", "Moderate use of charged language", "Some editorial perspective present"]
+                bias_indicators = [
+                    f"{biased_count} sentences with bias markers",
+                    f"{factual_count} sentences with neutral tone",
+                    "Mix of factual and opinion content"
+                ]
             else:
                 interpretation = f"This article demonstrates largely factual reporting with {biased_count} of {len(batch_results)} sentences ({round(biased_count/len(batch_results)*100, 1)}%) showing bias markers. The language is predominantly neutral and objective, consistent with balanced journalism standards."
-                bias_indicators = ["Mostly neutral language", "Factual reporting style", "Minimal opinion markers"]
+                bias_indicators = [
+                    f"{factual_count} of {len(batch_results)} sentences use neutral language",
+                    "Minimal emotional terminology",
+                    "Objective reporting style"
+                ]
             
             sample_text = " ".join(analysis_sentences[:8])
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
