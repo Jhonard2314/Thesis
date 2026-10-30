@@ -1,0 +1,38 @@
+﻿HUGGINGFACE SPACE UPDATE INSTRUCTIONS
+======================================
+
+1. Go to: https://huggingface.co/spaces/Breadknife/news-apex-api/blob/main/backend/api/fastapi_server.py
+
+2. Click the EDIT button (pencil icon)
+
+3. FIND line 461 (search for: level = "High" if avg_bias_prob)
+   It looks like: level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.50 else "Low"
+
+4. RIGHT AFTER that line, press ENTER twice and ADD these lines:
+---START COPYING HERE---
+            
+            # Generate detailed interpretation
+            interpretation = ""
+            bias_indicators = []
+            
+            if level == "High":
+                interpretation = f"This article exhibits strong linguistic bias across {biased_count} of {len(batch_results)} analyzed sentences ({round(biased_count/len(batch_results)*100, 1)}%). The language contains significant emotional framing, subjective opinions, or loaded terminology that deviates from neutral reporting standards."
+                bias_indicators = ["Highly emotional language", "Strong subjective framing", "Persuasive rhetoric detected"]
+            elif level == "Medium":
+                interpretation = f"This article shows moderate bias in {biased_count} of {len(batch_results)} sentences ({round(biased_count/len(batch_results)*100, 1)}%). While some factual reporting is present, the language includes noticeable opinion-based phrasing or emotionally charged terms that suggest editorial perspective."
+                bias_indicators = ["Mixed factual and opinion content", "Moderate use of charged language", "Some editorial perspective present"]
+            else:
+                interpretation = f"This article demonstrates largely factual reporting with {biased_count} of {len(batch_results)} sentences ({round(biased_count/len(batch_results)*100, 1)}%) showing bias markers. The language is predominantly neutral and objective, consistent with balanced journalism standards."
+                bias_indicators = ["Mostly neutral language", "Factual reporting style", "Minimal opinion markers"]
+---STOP COPYING HERE---
+
+5. SCROLL DOWN to find the line with: "explanation": f"Analysis completed
+   After that line, ADD these two lines (make sure the commas are correct):
+---START COPYING HERE---
+                "interpretation": interpretation,
+                "bias_indicators": bias_indicators,
+---STOP COPYING HERE---
+
+6. Click "Commit changes to main" button at the bottom
+
+7. Wait 2 minutes for rebuild - your changes will be LIVE!

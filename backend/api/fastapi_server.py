@@ -490,7 +490,6 @@ def analyze(request: AnalysisRequest):
             sample_text = " ".join(analysis_sentences[:8])
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
                 top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
-                top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
             else:
                 from collections import Counter
                 import re
@@ -500,6 +499,36 @@ def analyze(request: AnalysisRequest):
                 if use_remote_bias_fallback:
                     for tw in top_words:
                         tw["remote_fallback"] = True
+            
+            # Add explanations for why each word is biased
+            bias_word_patterns = {
+                "emotional": ["outrageous", "shocking", "devastating", "horrific", "stunning", "unbelievable"],
+                "subjective": ["obviously", "clearly", "undoubtedly", "certainly", "definitely"],
+                "loaded": ["radical", "extreme", "dangerous", "threat", "crisis", "disaster"],
+                "sensational": ["dramatically", "slammed", "blasted", "destroyed", "crushed"],
+                "judgmental": ["terrible", "horrible", "awful", "ridiculous", "absurd", "stupid"]
+            }
+            
+            for word_obj in top_words:
+                word_lower = word_obj["word"].lower()
+                reason = "High gradient activation indicates bias association"
+                
+                # Add context-aware explanations
+                for category, word_list in bias_word_patterns.items():
+                    if word_lower in word_list:
+                        if category == "emotional":
+                            reason = f"Emotional intensifier - appeals to feelings rather than facts"
+                        elif category == "subjective":
+                            reason = f"Subjective claim - presents opinion as fact"
+                        elif category == "loaded":
+                            reason = f"Loaded term - carries strong negative connotation"
+                        elif category == "sensational":
+                            reason = f"Sensational language - exaggerates for dramatic effect"
+                        elif category == "judgmental":
+                            reason = f"Judgmental language - expresses personal evaluation"
+                        break
+                
+                word_obj["reason"] = reason
             
             resp = {
                 "bias_level": level,
