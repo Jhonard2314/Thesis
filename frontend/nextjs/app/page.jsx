@@ -9,7 +9,7 @@ import KeepAlive from './components/KeepAlive';
 
 /* ── Analyze helpers ─────────────────────── */
 const isUrl       = (s) => { try { new URL(s); return s.startsWith('http'); } catch { return false; } };
-const getBiasColor = (l) => ({ Low: '#4CAF50', Medium: '#FFC107', High: '#F44336' }[l] ?? '#8BA3C1');
+const getBiasColor = (l) => ({ Low: '#4CAF50', Medium: '#FFEB3B', High: '#F44336' }[l] ?? '#8BA3C1');
 const getBiasBg    = (l) => ({ Low: '#0d2b0d', Medium: '#2b2200', High: '#2b0d0d' }[l] ?? '#0F1E38');
 const getBiasBadge = (l) => ({ Low: 'bg-green-900 text-green-300', Medium: 'bg-yellow-900 text-yellow-300', High: 'bg-red-900 text-red-300' }[l] ?? 'bg-slate-700 text-slate-300');
 
@@ -38,13 +38,8 @@ export default function Home() {
     localStorage.setItem('theme', newDark ? 'dark' : 'light');
   };
 
-  /* ── Model version state ──────────────────────────────────────────────── */
-  const [modelVersion, setModelVersion] = useState('v2');
-
-  const MODEL_INFO = {
-    v1: { label: 'BERT-BABE v1', detail: '83% acc · 3-epoch', color: '#d97706' },
-    v2: { label: 'BERT-BABE v2', detail: '96% acc · 10-epoch', color: '#0FA89A' },
-  };
+  /* ── Model version (fixed to v2) ──────────────────────────────────────── */
+  const modelVersion = 'v2';
 
   /* ── Search state ─────────────────────────────────────────────────────── */
   const [searchQuery, setSearchQuery]       = useState('');
@@ -144,14 +139,6 @@ export default function Home() {
     setTimeout(() => analyzeInputRef.current?.focus(), 50);
   };
 
-  const switchModel = (v) => {
-    setModelVersion(v);
-    // Clear results so user reruns with new model
-    setAnalyzeSummary(null); setAnalyzeBias(null);
-    setAnalyzeStage(s => s === 'done' || s === 'error' ? 'idle' : s);
-    setBiasData(d => d ? { ...d, bias_level: undefined, bias_score: undefined, sentence_breakdown: undefined, top_words: undefined } : d);
-  };
-
   const analyzeRunFull = async (content, url = null) => {
     setAnalyzeStage('analyzing'); setAnalyzeSummary(null); setAnalyzeBias(null);
     setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -240,22 +227,6 @@ export default function Home() {
 
           {/* Search bar */}
           <div className="ml-auto flex items-center gap-2">
-            
-            {/* Model version switcher */}
-            <div className="flex items-center rounded-lg overflow-hidden text-xs font-bold"
-              style={{ border: '1px solid var(--border)' }}>
-              {['v1', 'v2'].map(v => (
-                <button key={v} onClick={() => switchModel(v)}
-                  className="px-3 py-1.5 transition-colors"
-                  style={modelVersion === v
-                    ? { background: MODEL_INFO[v].color, color: '#fff' }
-                    : { background: 'var(--bg-card-alt)', color: 'var(--text-muted)' }
-                  }>
-                  {MODEL_INFO[v].label}
-                  <span className="ml-1 font-normal opacity-75 text-[10px]">{MODEL_INFO[v].detail}</span>
-                </button>
-              ))}
-            </div>
 
             {/* Theme toggle */}
             <button onClick={toggleTheme}
@@ -307,14 +278,6 @@ export default function Home() {
           <h2 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
             Analyze an Article
           </h2>
-          {/* Active model indicator */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-              style={{ background: MODEL_INFO[modelVersion].color + '20', color: MODEL_INFO[modelVersion].color, border: `1px solid ${MODEL_INFO[modelVersion].color}40` }}>
-              {MODEL_INFO[modelVersion].label} · {MODEL_INFO[modelVersion].detail}
-            </span>
-            <span className="text-[10px]" style={{ color: 'var(--text-subtle)' }}>active model</span>
-          </div>
 
           {/* Input bar */}
             <div className={`flex gap-3 rounded-2xl px-4 py-3 ${analyzeInput.length > 120 ? 'items-start' : 'items-center'}`}
@@ -458,8 +421,8 @@ export default function Home() {
                       <>
                         <div className="text-5xl font-black mb-1" style={{ color: getBiasColor(analyzeBias.bias_level) }}>{analyzeBias.bias_score}%</div>
                         <span className={`inline-block px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-3 ${getBiasBadge(analyzeBias.bias_level)}`}>Bias Score</span>
-                        <p className="text-[9px] mb-1 font-semibold" style={{ color: MODEL_INFO[modelVersion].color }}>
-                          {MODEL_INFO[modelVersion].label} · {MODEL_INFO[modelVersion].detail}
+                        <p className="text-[9px] mb-1 font-semibold" style={{ color: '#0FA89A' }}>
+                          BERT-BABE v2 · 96% acc · 10-epoch
                         </p>
                         <p className="text-xs leading-relaxed" style={{ color: '#B8C5D6' }}>{analyzeBias.explanation}</p>
                       </>

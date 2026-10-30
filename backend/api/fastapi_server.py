@@ -56,18 +56,6 @@ async def startup_event():
                 print(f"Startup Task: Bias model v2 FATAL: {ex}", file=sys.stderr)
 
             try:
-                print("Startup Task: Pre-loading bias model v1 (83%)...", file=sys.stderr)
-                service.load_local_bias_model("v1")
-                if service.bias_model_v1_status == "Loaded":
-                    print("Startup Task: Bias model v1 ready.", file=sys.stderr)
-                else:
-                    print(f"Startup Task: Bias model v1 finished status={service.bias_model_v1_status}", file=sys.stderr)
-            except Exception as ex:
-                service.bias_model_v1_status = "Error"
-                service.bias_model_v1_error = f"Startup thread exception (bias v1): {ex}\n{tb_global.format_exc()}"
-                print(f"Startup Task: Bias model v1 FATAL: {ex}", file=sys.stderr)
-
-            try:
                 print("Startup Task: Pre-loading facebook/bart-large-cnn summarizer...", file=sys.stderr)
                 service.load_local_summarizer()
                 if service.summarizer_status == "Loaded":
