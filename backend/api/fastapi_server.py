@@ -461,6 +461,20 @@ def analyze(request: AnalysisRequest):
             
             level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.50 else "Low"
             
+            # Generate detailed interpretation
+            interpretation = ""
+            bias_indicators = []
+            
+            if level == "High":
+                interpretation = f"This article exhibits strong linguistic bias across {biased_count} of {len(batch_results)} analyzed sentences ({round(biased_count/len(batch_results)*100, 1)}%). The language contains significant emotional framing, subjective opinions, or loaded terminology that deviates from neutral reporting standards."
+                bias_indicators = ["Highly emotional language", "Strong subjective framing", "Persuasive rhetoric detected"]
+            elif level == "Medium":
+                interpretation = f"This article shows moderate bias in {biased_count} of {len(batch_results)} sentences ({round(biased_count/len(batch_results)*100, 1)}%). While some factual reporting is present, the language includes noticeable opinion-based phrasing or emotionally charged terms that suggest editorial perspective."
+                bias_indicators = ["Mixed factual and opinion content", "Moderate use of charged language", "Some editorial perspective present"]
+            else:
+                interpretation = f"This article demonstrates largely factual reporting with {biased_count} of {len(batch_results)} sentences ({round(biased_count/len(batch_results)*100, 1)}%) showing bias markers. The language is predominantly neutral and objective, consistent with balanced journalism standards."
+                bias_indicators = ["Mostly neutral language", "Factual reporting style", "Minimal opinion markers"]
+            
             sample_text = " ".join(analysis_sentences[:8])
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
                 top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
@@ -482,6 +496,8 @@ def analyze(request: AnalysisRequest):
                 "model_version": model_version,
                 "model_label": "BERT-BABE v1 (83% acc, 3-epoch)" if model_version == "v1" else "BERT-BABE v2 (96% acc, 10-epoch)",
                 "explanation": f"Analysis completed across {len(analysis_sentences)} sentences. Overall bias score represents the average linguistic bias detected.",
+                "interpretation": interpretation,
+                "bias_indicators": bias_indicators,
                 "top_words": top_words,
                 "sentence_breakdown": sentence_results,
                 "factual_count": factual_count,

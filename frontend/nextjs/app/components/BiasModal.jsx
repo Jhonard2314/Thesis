@@ -105,7 +105,30 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                   <p className="text-[9px] font-semibold mb-2" style={{ color: activeColor }}>
                     {activeLabel}{activeDetail ? ` · ${activeDetail}` : ''}
                   </p>
-                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{biasData.explanation}</p>
+                  <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{biasData.explanation}</p>
+                  
+                  {/* Interpretation */}
+                  {biasData.interpretation && (
+                    <div className="rounded-lg p-3 mb-3 text-left" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                      <h5 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Why This Score?</h5>
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }}>{biasData.interpretation}</p>
+                    </div>
+                  )}
+                  
+                  {/* Bias Indicators */}
+                  {biasData.bias_indicators && biasData.bias_indicators.length > 0 && (
+                    <div className="text-left mb-3">
+                      <h5 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Detected Patterns</h5>
+                      <div className="space-y-1.5">
+                        {biasData.bias_indicators.map((indicator, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                            <div className="w-1.5 h-1.5 rounded-full mt-1 shrink-0" style={{ background: getBiasColor(biasData.bias_level) }}/>
+                            <span>{indicator}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Top biased words */}

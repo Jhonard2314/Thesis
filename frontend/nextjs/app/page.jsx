@@ -424,7 +424,30 @@ export default function Home() {
                         <p className="text-[9px] mb-1 font-semibold" style={{ color: '#0FA89A' }}>
                           BERT-BABE v2 · 96% acc · 10-epoch
                         </p>
-                        <p className="text-xs leading-relaxed" style={{ color: '#B8C5D6' }}>{analyzeBias.explanation}</p>
+                        <p className="text-xs leading-relaxed mb-3" style={{ color: '#B8C5D6' }}>{analyzeBias.explanation}</p>
+                        
+                        {/* Interpretation */}
+                        {analyzeBias.interpretation && (
+                          <div className="rounded-lg p-3 mb-3 text-left" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <h5 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Why This Score?</h5>
+                            <p className="text-xs leading-relaxed" style={{ color: '#E8EDF4' }}>{analyzeBias.interpretation}</p>
+                          </div>
+                        )}
+                        
+                        {/* Bias Indicators */}
+                        {analyzeBias.bias_indicators && analyzeBias.bias_indicators.length > 0 && (
+                          <div className="text-left">
+                            <h5 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Detected Patterns</h5>
+                            <div className="space-y-1">
+                              {analyzeBias.bias_indicators.map((indicator, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs" style={{ color: '#B8C5D6' }}>
+                                  <div className="w-1 h-1 rounded-full" style={{ background: getBiasColor(analyzeBias.bias_level) }}/>
+                                  <span>{indicator}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="flex flex-col items-center py-3">
