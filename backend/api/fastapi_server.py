@@ -499,6 +499,34 @@ def analyze(request: AnalysisRequest):
                 if use_remote_bias_fallback:
                     for tw in top_words:
                         tw["remote_fallback"] = True
+
+            # Add explanations for why each word is biased
+            bias_word_patterns = {
+                "emotional": ["outrageous", "shocking", "devastating", "horrific", "stunning", "unbelievable", "dramatically"],
+                "subjective": ["obviously", "clearly", "undoubtedly", "certainly", "definitely"],
+                "loaded": ["radical", "extreme", "dangerous", "threat", "crisis", "disaster", "slammed", "blasted"],
+                "judgmental": ["terrible", "horrible", "awful", "ridiculous", "absurd", "stupid", "traitor", "confronted"]
+            }
+            
+            for word_obj in top_words:
+                word_lower = word_obj["word"].lower()
+                reason = "High model activation - indicates potential bias"
+                
+                # Add context-aware explanations
+                for category, word_list in bias_word_patterns.items():
+                    if word_lower in word_list or any(w in word_lower for w in word_list):
+                        if category == "emotional":
+                            reason = "Emotional intensifier - appeals to feelings rather than facts"
+                        elif category == "subjective":
+                            reason = "Subjective assertion - presents opinion as certainty"
+                        elif category == "loaded":
+                            reason = "Loaded terminology - carries strong negative connotation"
+                        elif category == "judgmental":
+                            reason = "Judgmental language - expresses value judgment"
+                        break
+                
+                word_obj["reason"] = reason
+
             
             # Add explanations for why each word is biased
             bias_word_patterns = {
