@@ -233,6 +233,10 @@ def analyze(request: AnalysisRequest):
 
         # 1. Get content — priority: already-extracted content > pre-screened cache > live scrape > snippet fallback
         content = request.content or request.scraped_content or service.get_full_content(request.url)
+        
+        # Clean timestamps from manually pasted or pre-cached content
+        if content and (request.content or request.scraped_content):
+            content = service._clean_article_text(content)
 
         # Surface a clear message when the site actively blocked the scraper
         if isinstance(content, str) and content.startswith('__BLOCKED__:'):
@@ -250,7 +254,7 @@ def analyze(request: AnalysisRequest):
             clean_snippet = _re.sub(r'\s+', ' ', clean_snippet).strip()
             if len(clean_snippet) >= 80:
                 print(f"Scraping failed for {request.url}, using snippet fallback ({len(clean_snippet)} chars)", file=sys.stderr)
-                content = clean_snippet
+                content = service._clean_article_text(clean_snippet)
         if not content:
             return {"error": "Could not retrieve content for this article."}
 
