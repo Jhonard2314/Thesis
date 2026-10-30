@@ -479,7 +479,10 @@ export default function Home() {
                     <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Key Biased Markers</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {analyzeBias.top_words.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: '#1A0808', border: '1px solid #7f1d1d' }}>
+                        <div key={idx} 
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-help transition-all hover:scale-105" 
+                          style={{ background: '#1A0808', border: '1px solid #7f1d1d' }}
+                          title={item.reason || "Biased language detected by model"}>
                           <span className="text-[11px] font-bold text-red-400">{item.word}</span>
                           <span className="text-[9px] text-red-600 font-mono">{item.score}</span>
                         </div>

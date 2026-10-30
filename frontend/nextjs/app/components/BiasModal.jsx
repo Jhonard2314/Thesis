@@ -137,8 +137,10 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                     <h4 className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Key Biased Markers</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {biasData.top_words.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                          style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}>
+                        <div key={idx} 
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-help transition-all hover:scale-105"
+                          style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}
+                          title={item.reason || "Biased language detected by model"}>
                           <span className="text-[11px] font-bold text-red-600">{item.word}</span>
                           <span className="text-[9px] text-red-400 font-mono">{item.score}</span>
                         </div>
