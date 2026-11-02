@@ -507,32 +507,57 @@ def analyze(request: AnalysisRequest):
             # If gradient approach failed or isn't available, use fallback
             if not top_words:
                 print(f"[FASTAPI DEBUG] Using fallback keyword extraction (bias={level}, score={avg_bias_prob})", file=sys.stderr)
-                # Fallback: use simple word frequency analysis
+                # Fallback: use contextual word analysis with surrounding words
                 from collections import Counter
                 import re
                 words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text.lower())
                 filtered = [w for w in words if w not in service.STOP_WORDS]
                 top_words = []
+                
                 for w, c in Counter(filtered).most_common(8):
                     # Find sentence containing this word for context
                     word_context = None
+                    surrounding_words = []
+                    
                     for sent in analysis_sentences[:8]:
                         if w in sent.lower():
                             word_context = sent[:150] + "..." if len(sent) > 150 else sent
+                            
+                            # Extract surrounding words (3 before and after)
+                            sent_words = re.findall(r'\b\w+\b', sent.lower())
+                            try:
+                                word_idx = sent_words.index(w)
+                                # Get context window
+                                start = max(0, word_idx - 3)
+                                end = min(len(sent_words), word_idx + 4)
+                                context_window = sent_words[start:end]
+                                # Filter out stop words and the target word itself
+                                surrounding_words = [wd for wd in context_window if wd != w and wd not in service.STOP_WORDS][:3]
+                            except ValueError:
+                                pass
                             break
+                    
+                    # Generate context-specific explanation
+                    if surrounding_words and len(surrounding_words) >= 2:
+                        surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words[:2]])
+                        reason = f"The word '{w}' appears alongside {surrounding_str} in this sentence. This combination in a {level} bias context ({round(avg_bias_prob*100,1)}%) suggests emotionally charged or opinion-based framing rather than neutral reporting."
+                    elif surrounding_words:
+                        reason = f"The word '{w}' is used near '{surrounding_words[0]}' in a way that contributes to {level} bias ({round(avg_bias_prob*100,1)}%). The phrasing suggests subjective interpretation rather than factual reporting."
+                    else:
+                        reason = f"The word '{w}' appears in a sentence classified as biased ({level}, {round(avg_bias_prob*100,1)}%). Its usage in this context suggests opinion-based language rather than neutral reporting."
                     
                     top_words.append({
                         "word": w, 
                         "score": round(c * 10, 2),
                         "context": word_context or f"Word '{w}' appears multiple times in article",
-                        "reason": f"Word frequency analysis: '{w}' appears {c} times in text classified as {level} bias ({round(avg_bias_prob*100,1)}%). This word frequency in biased context suggests potential emotional or subjective framing."
+                        "reason": reason
                     })
                 
                 if use_remote_bias_fallback:
                     for tw in top_words:
                         tw["remote_fallback"] = True
                 
-                print(f"[FASTAPI DEBUG] Fallback generated {len(top_words)} keywords", file=sys.stderr)
+                print(f"[FASTAPI DEBUG] Fallback generated {len(top_words)} keywords with contextual analysis", file=sys.stderr)
 
             # Model already provides reason field with pure model-based explanations
             # Only add fallback reason for remote/fallback words that don't have one

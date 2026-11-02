@@ -355,31 +355,58 @@ class NewsService:
                         if att_tok not in ["[CLS]", "[SEP]", "[PAD]", word] and not att_tok.startswith("##"):
                             co_occurring_words.append(att_tok)
                 
-                # Build SPECIFIC explanation based on actual patterns detected
+                # Build SPECIFIC explanation based on actual patterns detected AND sentence context
+                # Extract surrounding words from the actual sentence for even more specific explanation
+                sentence_surrounding_words = []
+                if context_sentence and context_sentence != f"The word '{word}' appears in the article":
+                    import re
+                    context_words = re.findall(r'\b\w+\b', context_sentence.lower())
+                    if word.lower() in context_words:
+                        try:
+                            word_idx_in_sent = context_words.index(word.lower())
+                            start = max(0, word_idx_in_sent - 2)
+                            end = min(len(context_words), word_idx_in_sent + 3)
+                            sentence_surrounding_words = [w for w in context_words[start:end] if w != word.lower() and w not in self.STOP_WORDS][:3]
+                        except ValueError:
+                            pass
+                
                 if score > 200:
                     strength = "VERY STRONG"
-                    if co_occurring_words:
+                    if sentence_surrounding_words and len(sentence_surrounding_words) >= 2:
+                        nearby_str = ", ".join([f"'{w}'" for w in sentence_surrounding_words[:2]])
+                        explanation = f"In this sentence, '{word}' is used with {nearby_str}, creating emotionally charged language. The model's gradient analysis ({score:.1f}%) indicates this specific phrasing strongly signals opinion-based rather than factual reporting."
+                    elif co_occurring_words:
                         co_occur_str = ", ".join([f"'{w}'" for w in co_occurring_words[:3]])
                         explanation = f"Model's attention analysis shows '{word}' strongly associates with {co_occur_str} in this context, creating a pattern the model learned indicates opinionated framing. The neural network's gradient signal ({score:.1f}%) suggests this specific combination deviates significantly from neutral reporting patterns in its training data."
                     else:
                         explanation = f"Model detected '{word}' in a linguistic context that strongly activated bias neurons ({score:.1f}% gradient). The word's embedding position and surrounding context match patterns the model learned from non-neutral articles during training."
                 elif score > 150:
                     strength = "STRONG"
-                    if co_occurring_words:
+                    if sentence_surrounding_words and len(sentence_surrounding_words) >= 2:
+                        nearby_str = ", ".join([f"'{w}'" for w in sentence_surrounding_words[:2]])
+                        explanation = f"The word '{word}' appears alongside {nearby_str} in this sentence, suggesting subjective framing. Model gradient ({score:.1f}%) indicates this combination deviates from neutral reporting standards."
+                    elif co_occurring_words:
                         co_occur_str = ", ".join([f"'{w}'" for w in co_occurring_words[:3]])
                         explanation = f"The model flags '{word}' because of how it's used alongside words like {co_occur_str}. This combination activated bias-detection patterns ({score:.1f}% gradient) learned from the model's training corpus of labeled biased/factual articles."
                     else:
                         explanation = f"Model's gradient analysis ({score:.1f}%) indicates '{word}' appears in a semantic context that matches opinionated language patterns from the training data. The word's usage here differs from how it appears in neutral articles."
                 elif score > 120:
                     strength = "MODERATE"
-                    if co_occurring_words:
+                    if sentence_surrounding_words:
+                        nearby_str = ", ".join([f"'{w}'" for w in sentence_surrounding_words[:2]])
+                        explanation = f"'{word}' is used near {nearby_str}, creating a phrase that moderately signals bias ({score:.1f}%). This word pattern suggests opinion-based language rather than strictly factual reporting."
+                    elif co_occurring_words:
                         co_occur_str = ", ".join([f"'{w}'" for w in co_occurring_words[:2]])
                         explanation = f"Model detected '{word}' in proximity to {co_occur_str}, a pattern that moderately correlates with bias ({score:.1f}% activation). This word combination was associated with non-neutral framing in the model's training examples."
                     else:
                         explanation = f"The model's attention mechanism highlighted '{word}' ({score:.1f}% gradient) as deviating from typical neutral usage patterns. Its contextual embedding suggests opinion-based rather than factual framing."
                 elif score > 100:
                     strength = "SUBTLE"
-                    explanation = f"Model identified '{word}' ({score:.1f}% activation) as carrying subtle bias signals based on its semantic context. The gradient suggests the word's usage leans toward subjective framing compared to factual reporting in the training corpus."
+                    if sentence_surrounding_words:
+                        nearby_str = sentence_surrounding_words[0]
+                        explanation = f"'{word}' used with '{nearby_str}' carries subtle bias signals ({score:.1f}%). The phrasing suggests a subjective tone rather than purely factual language."
+                    else:
+                        explanation = f"Model identified '{word}' ({score:.1f}% activation) as carrying subtle bias signals based on its semantic context. The gradient suggests the word's usage leans toward subjective framing compared to factual reporting in the training corpus."
                 else:
                     strength = "MILD"
                     explanation = f"The model's learned patterns flag '{word}' ({score:.1f}% gradient) as potentially non-neutral based on its contextual usage. Lower confidence but still indicates deviation from strictly factual language."
