@@ -495,11 +495,26 @@ def analyze(request: AnalysisRequest):
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
                 top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
             else:
+                # Fallback: use simple word frequency analysis
                 from collections import Counter
                 import re
                 words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text.lower())
                 filtered = [w for w in words if w not in service.STOP_WORDS]
-                top_words = [{"word": w, "score": round(c * 10, 2)} for w, c in Counter(filtered).most_common(8)]
+                top_words = []
+                for w, c in Counter(filtered).most_common(8):
+                    # Find sentence containing this word for context
+                    word_context = None
+                    for sent in analysis_sentences[:8]:
+                        if w in sent.lower():
+                            word_context = sent[:150] + "..." if len(sent) > 150 else sent
+                            break
+                    
+                    top_words.append({
+                        "word": w, 
+                        "score": round(c * 10, 2),
+                        "context": word_context or f"Word '{w}' appears multiple times in article"
+                    })
+                
                 if use_remote_bias_fallback:
                     for tw in top_words:
                         tw["remote_fallback"] = True
@@ -508,7 +523,7 @@ def analyze(request: AnalysisRequest):
             # Only add fallback reason for remote/fallback words that don't have one
             for word_obj in top_words:
                 if "reason" not in word_obj or not word_obj["reason"]:
-                    word_obj["reason"] = f"Model detected bias pattern (gradient score: {word_obj.get('score', 0)}%)"
+                    word_obj["reason"] = f"Word frequency analysis detected this term appearing {int(word_obj.get('score', 0) / 10)} times in biased context. Full gradient analysis requires local model."
             
             resp = {
                 "bias_level": level,
