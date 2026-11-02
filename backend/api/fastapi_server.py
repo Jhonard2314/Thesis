@@ -494,11 +494,19 @@ def analyze(request: AnalysisRequest):
             sample_text = " ".join(analysis_sentences[:8])
             print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}, analysis_sentences count: {len(analysis_sentences)}", file=sys.stderr)
             
+            top_words = []
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
                 print(f"[FASTAPI DEBUG] Calling gradient extraction with model_version={model_version}", file=sys.stderr)
-                top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
-                print(f"[FASTAPI DEBUG] Gradient extraction returned {len(top_words)} keywords", file=sys.stderr)
-            else:
+                try:
+                    top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
+                    print(f"[FASTAPI DEBUG] Gradient extraction returned {len(top_words)} keywords", file=sys.stderr)
+                except Exception as grad_e:
+                    print(f"[FASTAPI DEBUG] Gradient extraction failed: {grad_e}", file=sys.stderr)
+                    top_words = []
+            
+            # If gradient approach failed or isn't available, use fallback
+            if not top_words:
+                print(f"[FASTAPI DEBUG] Using fallback keyword extraction (bias={level}, score={avg_bias_prob})", file=sys.stderr)
                 # Fallback: use simple word frequency analysis
                 from collections import Counter
                 import re
@@ -516,12 +524,15 @@ def analyze(request: AnalysisRequest):
                     top_words.append({
                         "word": w, 
                         "score": round(c * 10, 2),
-                        "context": word_context or f"Word '{w}' appears multiple times in article"
+                        "context": word_context or f"Word '{w}' appears multiple times in article",
+                        "reason": f"Word frequency analysis: '{w}' appears {c} times in text classified as {level} bias ({round(avg_bias_prob*100,1)}%). This word frequency in biased context suggests potential emotional or subjective framing."
                     })
                 
                 if use_remote_bias_fallback:
                     for tw in top_words:
                         tw["remote_fallback"] = True
+                
+                print(f"[FASTAPI DEBUG] Fallback generated {len(top_words)} keywords", file=sys.stderr)
 
             # Model already provides reason field with pure model-based explanations
             # Only add fallback reason for remote/fallback words that don't have one
