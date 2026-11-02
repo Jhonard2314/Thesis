@@ -259,7 +259,7 @@ class NewsService:
             sentences = re.split(r'[.!?]+', text)
             sentences = [s.strip() for s in sentences if s.strip()]
 
-            # Filter tokens
+            # Filter tokens - exclude proper nouns, names, and non-bias-relevant words
             filtered = []
             for tok, score in zip(tokens, scores):
                 if tok in ["[CLS]", "[SEP]", "[PAD]"] or tok.startswith("##"):
@@ -270,12 +270,48 @@ class NewsService:
                     continue
                 if len(tok) < 3 and tok.lower() not in ['a', 'i']:
                     continue
+                # Skip words that start with capital (likely proper nouns/names)
+                if tok[0].isupper():
+                    continue
                 
                 filtered.append((tok, score.item()))
 
             # Sort by importance
             sorted_tokens = sorted(filtered, key=lambda x: x[1], reverse=True)
             print(f"[KEYWORD DEBUG] Filtered tokens count: {len(filtered)}, top {top_k} tokens: {sorted_tokens[:top_k]}", file=sys.stderr)
+            
+            # Additional POS filtering to get only verbs and adjectives
+            try:
+                import nltk
+                try:
+                    nltk.data.find('taggers/averaged_perceptron_tagger')
+                except LookupError:
+                    nltk.download('averaged_perceptron_tagger', quiet=True)
+                
+                # Tag the top tokens
+                top_candidates = sorted_tokens[:top_k * 3]  # Get more candidates to filter from
+                words_to_tag = [t[0] for t in top_candidates]
+                tagged = nltk.pos_tag(words_to_tag)
+                
+                # Keep only verbs, adjectives, and adverbs
+                pos_filtered = []
+                seen_words = set()
+                for (word, pos), (_, score) in zip(tagged, top_candidates):
+                    word_lower = word.lower()
+                    if word_lower in seen_words:
+                        continue
+                    # Keep verbs (VB*), adjectives (JJ*), adverbs (RB*)
+                    if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
+                        pos_filtered.append((word, score))
+                        seen_words.add(word_lower)
+                        if len(pos_filtered) >= top_k:
+                            break
+                
+                if pos_filtered:
+                    sorted_tokens = pos_filtered
+                    print(f"[KEYWORD DEBUG] After POS filtering: {len(sorted_tokens)} bias-relevant words", file=sys.stderr)
+            except Exception as pos_error:
+                print(f"[KEYWORD DEBUG] POS filtering skipped: {pos_error}", file=sys.stderr)
             
             # Add model-based reasoning using co-occurrence and semantic analysis
             results = []

@@ -510,11 +510,54 @@ def analyze(request: AnalysisRequest):
                 # Fallback: use contextual word analysis with surrounding words
                 from collections import Counter
                 import re
-                words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text.lower())
-                filtered = [w for w in words if w not in service.STOP_WORDS]
-                top_words = []
+                import nltk
                 
-                for w, c in Counter(filtered).most_common(8):
+                # Download required NLTK data if not present
+                try:
+                    nltk.data.find('taggers/averaged_perceptron_tagger')
+                except LookupError:
+                    nltk.download('averaged_perceptron_tagger', quiet=True)
+                try:
+                    nltk.data.find('tokenizers/punkt')
+                except LookupError:
+                    nltk.download('punkt', quiet=True)
+                
+                # Extract and tag words
+                words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text)
+                filtered = [w for w in words if w.lower() not in service.STOP_WORDS]
+                
+                # POS tagging to identify verbs and adjectives
+                try:
+                    tagged = nltk.pos_tag(filtered)
+                    # Keep only verbs (VB*), adjectives (JJ*), and common nouns (NN but not NNP/NNPS)
+                    # Exclude proper nouns (NNP, NNPS) and overly formal words
+                    bias_relevant = []
+                    seen_words = set()  # Track to avoid repetition
+                    
+                    for word, pos in tagged:
+                        word_lower = word.lower()
+                        # Skip if already seen (avoid repetition)
+                        if word_lower in seen_words:
+                            continue
+                        # Skip proper nouns and words that start with capital (likely names)
+                        if pos in ['NNP', 'NNPS'] or word[0].isupper():
+                            continue
+                        # Keep verbs, adjectives, and common nouns (but skip generic nouns)
+                        if pos.startswith('VB') or pos.startswith('JJ') or pos == 'RB' or pos == 'RBR' or pos == 'RBS':
+                            bias_relevant.append(word_lower)
+                            seen_words.add(word_lower)
+                    
+                    # Count frequencies of bias-relevant words
+                    word_counts = Counter(bias_relevant)
+                    
+                except Exception as nltk_error:
+                    print(f"[FASTAPI DEBUG] NLTK tagging failed: {nltk_error}, falling back to simple filtering", file=sys.stderr)
+                    # Fallback: simple filtering without POS tagging
+                    bias_relevant = [w.lower() for w in filtered if not w[0].isupper()]
+                    word_counts = Counter(bias_relevant)
+                
+                top_words = []
+                for w, c in word_counts.most_common(8):
                     # Find sentence containing this word for context
                     word_context = None
                     surrounding_words = []
