@@ -524,36 +524,41 @@ def analyze(request: AnalysisRequest):
                 
                 # Extract and tag words
                 words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text)
-                filtered = [w for w in words if w.lower() not in service.STOP_WORDS]
                 
                 # POS tagging to identify verbs and adjectives
                 try:
-                    tagged = nltk.pos_tag(filtered)
-                    # Keep only verbs (VB*), adjectives (JJ*), and common nouns (NN but not NNP/NNPS)
-                    # Exclude proper nouns (NNP, NNPS) and overly formal words
+                    tagged = nltk.pos_tag(words)  # Keep original case for tagging
+                    # Keep only verbs (VB*), adjectives (JJ*), and adverbs (RB*)
+                    # Exclude proper nouns (NNP, NNPS) and common nouns (NN, NNS)
                     bias_relevant = []
                     seen_words = set()  # Track to avoid repetition
                     
                     for word, pos in tagged:
                         word_lower = word.lower()
                         # Skip if already seen (avoid repetition)
-                        if word_lower in seen_words:
+                        if word_lower in seen_words or word_lower in service.STOP_WORDS:
                             continue
-                        # Skip proper nouns and words that start with capital (likely names)
-                        if pos in ['NNP', 'NNPS'] or word[0].isupper():
+                        # Skip proper nouns
+                        if pos in ['NNP', 'NNPS']:
                             continue
-                        # Keep verbs, adjectives, and common nouns (but skip generic nouns)
-                        if pos.startswith('VB') or pos.startswith('JJ') or pos == 'RB' or pos == 'RBR' or pos == 'RBS':
+                        # Skip common nouns - we only want descriptive/action words
+                        if pos in ['NN', 'NNS']:
+                            continue
+                        # Keep only verbs, adjectives, and adverbs
+                        if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
                             bias_relevant.append(word_lower)
                             seen_words.add(word_lower)
                     
                     # Count frequencies of bias-relevant words
                     word_counts = Counter(bias_relevant)
+                    print(f"[FASTAPI DEBUG] POS tagging found {len(bias_relevant)} bias-relevant words: {bias_relevant[:10]}", file=sys.stderr)
                     
                 except Exception as nltk_error:
                     print(f"[FASTAPI DEBUG] NLTK tagging failed: {nltk_error}, falling back to simple filtering", file=sys.stderr)
-                    # Fallback: simple filtering without POS tagging
-                    bias_relevant = [w.lower() for w in filtered if not w[0].isupper()]
+                    # Fallback: simple filtering without POS tagging - exclude capitalized words
+                    words_lower = [w.lower() for w in words]
+                    filtered = [w for w in words_lower if w not in service.STOP_WORDS and not words[words_lower.index(w)][0].isupper()]
+                    bias_relevant = filtered
                     word_counts = Counter(bias_relevant)
                 
                 top_words = []
