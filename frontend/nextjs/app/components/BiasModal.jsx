@@ -172,6 +172,15 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                     </div>
                   </div>
                 )}
+                
+                {/* Show message if Medium/High but no keywords found */}
+                {biasData?.bias_level && biasData.bias_level !== 'Low' && (!biasData?.top_words || biasData.top_words.length === 0) && (
+                  <div className="rounded-lg p-3" style={{ background: 'rgba(220,38,38,0.05)', border: '1px dashed rgba(220,38,38,0.3)' }}>
+                    <p className="text-[10px] italic" style={{ color: 'var(--text-muted)' }}>
+                      Model detected bias but keyword extraction is still loading...
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
