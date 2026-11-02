@@ -514,13 +514,20 @@ def analyze(request: AnalysisRequest):
                 
                 # Download required NLTK data if not present
                 try:
+                    nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+                except LookupError:
+                    try:
+                        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+                    except:
+                        pass
+                
+                try:
                     nltk.data.find('taggers/averaged_perceptron_tagger')
                 except LookupError:
-                    nltk.download('averaged_perceptron_tagger', quiet=True)
-                try:
-                    nltk.data.find('tokenizers/punkt')
-                except LookupError:
-                    nltk.download('punkt', quiet=True)
+                    try:
+                        nltk.download('averaged_perceptron_tagger', quiet=True)
+                    except:
+                        pass
                 
                 # Extract and tag words
                 words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text)
@@ -538,30 +545,39 @@ def analyze(request: AnalysisRequest):
                         # Skip if already seen (avoid repetition)
                         if word_lower in seen_words or word_lower in service.STOP_WORDS:
                             continue
-                        # Skip proper nouns
+                        # Skip proper nouns (NNP = singular proper noun, NNPS = plural proper noun)
                         if pos in ['NNP', 'NNPS']:
                             continue
-                        # Skip common nouns - we only want descriptive/action words
-                        if pos in ['NN', 'NNS']:
+                        # Skip ALL nouns - we only want descriptive/action words
+                        if pos in ['NN', 'NNS', 'NNP', 'NNPS']:
                             continue
-                        # Keep only verbs, adjectives, and adverbs
+                        # Keep only verbs (VB, VBD, VBG, VBN, VBP, VBZ), adjectives (JJ, JJR, JJS), and adverbs (RB, RBR, RBS)
                         if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
                             bias_relevant.append(word_lower)
                             seen_words.add(word_lower)
                     
                     # Count frequencies of bias-relevant words
                     word_counts = Counter(bias_relevant)
-                    print(f"[FASTAPI DEBUG] POS tagging found {len(bias_relevant)} bias-relevant words: {bias_relevant[:10]}", file=sys.stderr)
+                    print(f"[FASTAPI DEBUG] POS tagging found {len(bias_relevant)} bias-relevant words", file=sys.stderr)
+                    
+                    # If POS tagging worked but found no results, continue to fallback
+                    if not bias_relevant:
+                        raise Exception("No bias-relevant words found after POS filtering")
                     
                 except Exception as nltk_error:
-                    print(f"[FASTAPI DEBUG] NLTK tagging failed: {nltk_error}, falling back to simple filtering", file=sys.stderr)
-                    # Fallback: simple filtering without POS tagging - exclude capitalized words
-                    words_lower = [w.lower() for w in words]
-                    filtered = [w for w in words_lower if w not in service.STOP_WORDS and not words[words_lower.index(w)][0].isupper()]
+                    print(f"[FASTAPI DEBUG] NLTK tagging failed or no results: {nltk_error}, using simple filtering", file=sys.stderr)
+                    # Fallback: simple filtering - exclude capitalized first letters (likely proper nouns)
+                    # Also skip common neutral nouns manually
+                    neutral_nouns = {'senator', 'president', 'politician', 'government', 'people', 'person', 
+                                   'official', 'spokesperson', 'representative', 'governor', 'country', 'state',
+                                   'critics', 'supporters', 'members', 'words', 'back', 'office', 'time'}
+                    filtered = [w.lower() for w in words if w.lower() not in service.STOP_WORDS and w.lower() not in neutral_nouns]
                     bias_relevant = filtered
                     word_counts = Counter(bias_relevant)
+                    print(f"[FASTAPI DEBUG] Fallback filtering found {len(bias_relevant)} words", file=sys.stderr)
                 
                 top_words = []
+                seen_words = set()
                 for w, c in word_counts.most_common(8):
                     # Find sentence containing this word for context
                     word_context = None
