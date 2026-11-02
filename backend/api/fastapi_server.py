@@ -492,8 +492,12 @@ def analyze(request: AnalysisRequest):
                 ]
             
             sample_text = " ".join(analysis_sentences[:8])
+            print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}, analysis_sentences count: {len(analysis_sentences)}", file=sys.stderr)
+            
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
+                print(f"[FASTAPI DEBUG] Calling gradient extraction with model_version={model_version}", file=sys.stderr)
                 top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
+                print(f"[FASTAPI DEBUG] Gradient extraction returned {len(top_words)} keywords", file=sys.stderr)
             else:
                 # Fallback: use simple word frequency analysis
                 from collections import Counter

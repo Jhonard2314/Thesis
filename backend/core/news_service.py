@@ -215,9 +215,15 @@ class NewsService:
         tokenizer = self.bias_tokenizer_v1 if model_version == "v1" else self.bias_tokenizer
 
         if not model or not tokenizer:
+            print(f"[KEYWORD DEBUG] Model or tokenizer not loaded: model={bool(model)}, tokenizer={bool(tokenizer)}", file=sys.stderr)
+            return []
+        
+        if not text or len(text.strip()) < 10:
+            print(f"[KEYWORD DEBUG] Text too short: len={len(text) if text else 0}", file=sys.stderr)
             return []
 
         try:
+            print(f"[KEYWORD DEBUG] Processing text of length {len(text)}, first 100 chars: {text[:100]}", file=sys.stderr)
             encoding = tokenizer(
                 text,
                 return_tensors="pt",
@@ -269,6 +275,7 @@ class NewsService:
 
             # Sort by importance
             sorted_tokens = sorted(filtered, key=lambda x: x[1], reverse=True)
+            print(f"[KEYWORD DEBUG] Filtered tokens count: {len(filtered)}, top {top_k} tokens: {sorted_tokens[:top_k]}", file=sys.stderr)
             
             # Add model-based reasoning using co-occurrence and semantic analysis
             results = []
@@ -384,9 +391,12 @@ class NewsService:
                     "context": context_sentence
                 })
             
+            print(f"[KEYWORD DEBUG] Returning {len(results)} keywords with context", file=sys.stderr)
             return results
         except Exception as e:
-            print(f"Gradient Calculation Error: {e}", file=sys.stderr)
+            import traceback
+            print(f"[KEYWORD DEBUG] Gradient Calculation Error: {e}", file=sys.stderr)
+            print(f"[KEYWORD DEBUG] Traceback: {traceback.format_exc()}", file=sys.stderr)
             return []
 
     def get_bias_reasoning(self, text, label, bias_score):
