@@ -491,8 +491,16 @@ def analyze(request: AnalysisRequest):
                     "Objective reporting style"
                 ]
             
-            sample_text = " ".join(analysis_sentences[:8])
-            print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}, analysis_sentences count: {len(analysis_sentences)}", file=sys.stderr)
+            # Extract only BIASED sentences for keyword analysis
+            biased_sentences = []
+            for i, res in enumerate(batch_results):
+                if res["label"] == "Biased":
+                    biased_sentences.append(analysis_sentences[i])
+            
+            # Use biased sentences for keyword extraction (or all if none are biased)
+            sample_text = " ".join(biased_sentences[:8]) if biased_sentences else " ".join(analysis_sentences[:8])
+            print(f"[FASTAPI DEBUG] Using {len(biased_sentences)} biased sentences out of {len(analysis_sentences)} total for keyword extraction", file=sys.stderr)
+            print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}", file=sys.stderr)
             
             top_words = []
             if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
