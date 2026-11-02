@@ -190,10 +190,6 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                     </div>
                   </div>
                 )}
-                      ))}
-                    </div>
-                  </div>
-                )}
                 
                 {/* Show message if Medium/High but no keywords found */}
                 {biasData?.bias_level && biasData.bias_level !== 'Low' && (!biasData?.top_words || biasData.top_words.length === 0) && (
