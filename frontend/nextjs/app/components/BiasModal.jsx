@@ -137,17 +137,16 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                 {biasData?.top_words?.length > 0 && (
                   <div>
                     <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
-                      {biasData.bias_level === 'Low' ? 'Subtle Language Markers' : 'Key Biased Markers'}
+                      {biasData.bias_level === 'Low' ? 'Biased Language Detected' : 'Key Biased Markers'}
                     </h4>
                     <div className="space-y-3">
                       {biasData.top_words.map((item, idx) => {
-                        // Use subtle styling for Low bias
-                        const isLowBias = biasData.bias_level === 'Low';
-                        const bgColor = isLowBias ? 'rgba(34,197,94,0.06)' : 'rgba(220,38,38,0.06)';
-                        const borderColor = isLowBias ? 'rgba(34,197,94,0.2)' : 'rgba(220,38,38,0.2)';
-                        const textColor = isLowBias ? 'rgb(22,163,74)' : 'rgb(220,38,38)';
-                        const highlightBg = isLowBias ? 'rgba(34,197,94,0.05)' : 'rgba(220,38,38,0.05)';
-                        const highlightBorder = isLowBias ? 'rgba(34,197,94,0.4)' : 'rgba(220,38,38,0.4)';
+                        // Always use RED styling since keywords come from RED biased sentences
+                        const bgColor = 'rgba(220,38,38,0.06)';
+                        const borderColor = 'rgba(220,38,38,0.2)';
+                        const textColor = 'rgb(220,38,38)';
+                        const highlightBg = 'rgba(220,38,38,0.05)';
+                        const highlightBorder = 'rgba(220,38,38,0.4)';
                         
                         return (
                         <div key={idx} 
@@ -160,7 +159,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                             <span className="text-[13px] font-bold" style={{ color: textColor }}>{item.word}</span>
                             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ 
                               color: textColor, 
-                              background: isLowBias ? 'rgba(34,197,94,0.1)' : 'rgba(220,38,38,0.1)' 
+                              background: 'rgba(220,38,38,0.1)'
                             }}>{item.score}</span>
                           </div>
                           
