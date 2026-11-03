@@ -509,109 +509,62 @@ def analyze(request: AnalysisRequest):
             
                 top_words = []
                 if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
-                print(f"[FASTAPI DEBUG] Calling gradient extraction with model_version={model_version}", file=sys.stderr)
-                try:
-                    top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
-                    print(f"[FASTAPI DEBUG] Gradient extraction returned {len(top_words)} keywords", file=sys.stderr)
-                except Exception as grad_e:
-                    print(f"[FASTAPI DEBUG] Gradient extraction failed: {grad_e}", file=sys.stderr)
-                    top_words = []
+                    print(f"[FASTAPI DEBUG] Calling gradient extraction with model_version={model_version}", file=sys.stderr)
+                    try:
+                        top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
+                        print(f"[FASTAPI DEBUG] Gradient extraction returned {len(top_words)} keywords", file=sys.stderr)
+                    except Exception as grad_e:
+                        print(f"[FASTAPI DEBUG] Gradient extraction failed: {grad_e}", file=sys.stderr)
+                        top_words = []
             
-            # If gradient approach failed or isn't available, use fallback
-            if not top_words:
-                print(f"[FASTAPI DEBUG] Using fallback keyword extraction (bias={level}, score={avg_bias_prob})", file=sys.stderr)
-                # Fallback: use contextual word analysis with surrounding words
-                from collections import Counter
-                import re
-                import nltk
-                
-                # Download required NLTK data if not present
-                try:
-                    nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+                # If gradient approach failed or isn't available, use fallback
+                if not top_words:
+                    print(f"[FASTAPI DEBUG] Using fallback keyword extraction (bias={level}, score={avg_bias_prob})", file=sys.stderr)
+                    # Fallback: use contextual word analysis with surrounding words
+                    from collections import Counter
+                    import re
+                    import nltk
+                    
+                    # Download required NLTK data if not present
+                    try:
+                        nltk.data.find('taggers/averaged_perceptron_tagger_eng')
                 except LookupError:
                     try:
                         nltk.download('averaged_perceptron_tagger_eng', quiet=True)
                     except:
                         pass
-                
-                try:
-                    nltk.data.find('taggers/averaged_perceptron_tagger')
-                except LookupError:
+                    
                     try:
-                        nltk.download('averaged_perceptron_tagger', quiet=True)
-                    except:
-                        pass
-                
-                # Extract and tag words
-                words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sample_text)
-                
-                # POS tagging to identify verbs and adjectives
-                try:
-                    tagged = nltk.pos_tag(words)  # Keep original case for tagging
-                    # Keep only verbs (VB*), adjectives (JJ*), and adverbs (RB*)
-                    # Exclude proper nouns (NNP, NNPS) and common nouns (NN, NNS)
-                    bias_relevant = []
-                    seen_words = set()  # Track to avoid repetition
+                        nltk.data.find('taggers/averaged_perceptron_tagger')
+                    except LookupError:
+                        try:
+                            nltk.download('averaged_perceptron_tagger', quiet=True)
+                        except:
+                            pass
                     
-                    for word, pos in tagged:
-                        word_lower = word.lower()
-                        # Skip if already seen (avoid repetition)
-                        if word_lower in seen_words or word_lower in service.STOP_WORDS:
-                            continue
-                        # Skip proper nouns (NNP = singular proper noun, NNPS = plural proper noun)
-                        if pos in ['NNP', 'NNPS']:
-                            continue
-                        # Skip ALL nouns - we only want descriptive/action words
-                        if pos in ['NN', 'NNS', 'NNP', 'NNPS']:
-                            continue
-                        # Keep only verbs (VB, VBD, VBG, VBN, VBP, VBZ), adjectives (JJ, JJR, JJS), and adverbs (RB, RBR, RBS)
-                        if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
-                            bias_relevant.append(word_lower)
-                            seen_words.add(word_lower)
+                    # NEW APPROACH: Extract keywords per biased sentence (distributed across different sentences)
+                    top_words = []
+                    seen_words = set()
                     
-                    # Count frequencies of bias-relevant words
-                    word_counts = Counter(bias_relevant)
-                    print(f"[FASTAPI DEBUG] POS tagging found {len(bias_relevant)} bias-relevant words", file=sys.stderr)
+                    print(f"[FASTAPI DEBUG] Distributing keywords across {len(biased_sentences)} biased sentences", file=sys.stderr)
                     
-                    # If POS tagging worked but found no results, continue to fallback
-                    if not bias_relevant:
-                        raise Exception("No bias-relevant words found after POS filtering")
-                    
-                except Exception as nltk_error:
-                    print(f"[FASTAPI DEBUG] NLTK tagging failed or no results: {nltk_error}, using simple filtering", file=sys.stderr)
-                    # Fallback: simple filtering - exclude capitalized first letters (likely proper nouns)
-                    # Also skip common neutral nouns manually
-                    neutral_nouns = {'senator', 'president', 'politician', 'government', 'people', 'person', 
-                                   'official', 'spokesperson', 'representative', 'governor', 'country', 'state',
-                                   'critics', 'supporters', 'members', 'words', 'back', 'office', 'time'}
-                    filtered = [w.lower() for w in words if w.lower() not in service.STOP_WORDS and w.lower() not in neutral_nouns]
-                    bias_relevant = filtered
-                    word_counts = Counter(bias_relevant)
-                    print(f"[FASTAPI DEBUG] Fallback filtering found {len(bias_relevant)} words", file=sys.stderr)
-                
-                # NEW APPROACH: Extract keywords per biased sentence (distributed across different sentences)
-                top_words = []
-                seen_words = set()
-                
-                print(f"[FASTAPI DEBUG] Distributing keywords across {len(biased_sentences)} biased sentences", file=sys.stderr)
-                
-                # Process each biased sentence separately to get diverse keywords
-                for sent_idx, sent in enumerate(biased_sentences[:8]):
-                    words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sent)
-                    
-                    # POS tagging for this sentence
-                    try:
-                        tagged = nltk.pos_tag(words)
-                        sentence_keywords = []
+                    # Process each biased sentence separately to get diverse keywords
+                    for sent_idx, sent in enumerate(biased_sentences[:8]):
+                        words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sent)
                         
-                        for word, pos in tagged:
-                            word_lower = word.lower()
-                            if word_lower in seen_words or word_lower in service.STOP_WORDS:
-                                continue
-                            if pos in ['NNP', 'NNPS', 'NN', 'NNS']:
-                                continue
-                            if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
-                                sentence_keywords.append((word_lower, pos))
+                        # POS tagging for this sentence
+                        try:
+                            tagged = nltk.pos_tag(words)
+                            sentence_keywords = []
+                            
+                            for word, pos in tagged:
+                                word_lower = word.lower()
+                                if word_lower in seen_words or word_lower in service.STOP_WORDS:
+                                    continue
+                                if pos in ['NNP', 'NNPS', 'NN', 'NNS']:
+                                    continue
+                                if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
+                                    sentence_keywords.append((word_lower, pos))
                         
                         # Take top 1-2 keywords from this sentence
                         for word_lower, pos in sentence_keywords[:2]:
