@@ -141,12 +141,35 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                     </h4>
                     <div className="space-y-3">
                       {biasData.top_words.map((item, idx) => {
-                        // Always use RED styling since keywords come from RED biased sentences
-                        const bgColor = 'rgba(220,38,38,0.06)';
-                        const borderColor = 'rgba(220,38,38,0.2)';
-                        const textColor = 'rgb(220,38,38)';
-                        const highlightBg = 'rgba(220,38,38,0.05)';
-                        const highlightBorder = 'rgba(220,38,38,0.4)';
+                        // Use color based on bias_level following backend grading scale:
+                        // 0-50% = Green, 51-70% = Yellow, 71-100% = Red
+                        const isLowBias = biasData.bias_level === 'Low';
+                        const isMediumBias = biasData.bias_level === 'Medium';
+                        
+                        let bgColor, borderColor, textColor, highlightBg, highlightBorder;
+                        
+                        if (isLowBias) {
+                          // Green for Low bias (0-50%)
+                          bgColor = 'rgba(34,197,94,0.06)';
+                          borderColor = 'rgba(34,197,94,0.2)';
+                          textColor = 'rgb(22,163,74)';
+                          highlightBg = 'rgba(34,197,94,0.05)';
+                          highlightBorder = 'rgba(34,197,94,0.4)';
+                        } else if (isMediumBias) {
+                          // Yellow for Medium bias (51-70%)
+                          bgColor = 'rgba(245,158,11,0.06)';
+                          borderColor = 'rgba(245,158,11,0.25)';
+                          textColor = 'rgb(217,119,6)';
+                          highlightBg = 'rgba(245,158,11,0.05)';
+                          highlightBorder = 'rgba(245,158,11,0.4)';
+                        } else {
+                          // Red for High bias (71-100%)
+                          bgColor = 'rgba(220,38,38,0.06)';
+                          borderColor = 'rgba(220,38,38,0.2)';
+                          textColor = 'rgb(220,38,38)';
+                          highlightBg = 'rgba(220,38,38,0.05)';
+                          highlightBorder = 'rgba(220,38,38,0.4)';
+                        }
                         
                         return (
                         <div key={idx} 
@@ -159,7 +182,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                             <span className="text-[13px] font-bold" style={{ color: textColor }}>{item.word}</span>
                             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ 
                               color: textColor, 
-                              background: 'rgba(220,38,38,0.1)'
+                              background: isLowBias ? 'rgba(34,197,94,0.1)' : isMediumBias ? 'rgba(245,158,11,0.15)' : 'rgba(220,38,38,0.1)'
                             }}>{item.score}</span>
                           </div>
                           
