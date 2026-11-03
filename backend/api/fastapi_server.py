@@ -589,60 +589,77 @@ def analyze(request: AnalysisRequest):
                     word_counts = Counter(bias_relevant)
                     print(f"[FASTAPI DEBUG] Fallback filtering found {len(bias_relevant)} words", file=sys.stderr)
                 
+                # NEW APPROACH: Extract keywords per biased sentence (distributed across different sentences)
                 top_words = []
                 seen_words = set()
-                for w, c in word_counts.most_common(15):  # Get more candidates to filter
-                    if w in seen_words:
-                        continue
+                sentences_used = set()
+                
+                print(f"[FASTAPI DEBUG] Distributing keywords across {len(biased_sentences)} biased sentences", file=sys.stderr)
+                
+                # Process each biased sentence separately to get diverse keywords
+                for sent_idx, sent in enumerate(biased_sentences[:8]):
+                    words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sent)
                     
-                    # Find sentence containing this word for context
-                    # CRITICAL: Only search in BIASED sentences, not all sentences
-                    word_context = None
-                    surrounding_words = []
-                    found_in_biased_sentence = False
-                    
-                    for sent in biased_sentences[:8]:  # Changed from analysis_sentences to biased_sentences
-                        if w in sent.lower():
-                            found_in_biased_sentence = True
+                    # POS tagging for this sentence
+                    try:
+                        tagged = nltk.pos_tag(words)
+                        sentence_keywords = []
+                        
+                        for word, pos in tagged:
+                            word_lower = word.lower()
+                            if word_lower in seen_words or word_lower in service.STOP_WORDS:
+                                continue
+                            if pos in ['NNP', 'NNPS', 'NN', 'NNS']:
+                                continue
+                            if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
+                                sentence_keywords.append((word_lower, pos))
+                        
+                        # Take top 1-2 keywords from this sentence
+                        for word_lower, pos in sentence_keywords[:2]:
+                            if word_lower in seen_words:
+                                continue
+                            
+                            seen_words.add(word_lower)
                             word_context = sent[:150] + "..." if len(sent) > 150 else sent
                             
-                            # Extract surrounding words (3 before and after)
+                            # Extract surrounding words
                             sent_words = re.findall(r'\b\w+\b', sent.lower())
+                            surrounding_words = []
                             try:
-                                word_idx = sent_words.index(w)
-                                # Get context window
-                                start = max(0, word_idx - 3)
-                                end = min(len(sent_words), word_idx + 4)
+                                word_idx = sent_words.index(word_lower)
+                                start = max(0, word_idx - 2)
+                                end = min(len(sent_words), word_idx + 3)
                                 context_window = sent_words[start:end]
-                                # Filter out stop words and the target word itself
-                                surrounding_words = [wd for wd in context_window if wd != w and wd not in service.STOP_WORDS][:3]
+                                surrounding_words = [wd for wd in context_window if wd != word_lower and wd not in service.STOP_WORDS][:2]
                             except ValueError:
                                 pass
+                            
+                            # Generate reason specific to THIS sentence's context
+                            if surrounding_words:
+                                surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words])
+                                reason = f"The word '{word_lower}' appears alongside {surrounding_str} in this biased sentence. This combination suggests emotionally charged or opinion-based framing."
+                            else:
+                                reason = f"The word '{word_lower}' appears in a sentence flagged as biased. Its usage suggests opinion-based language."
+                            
+                            top_words.append({
+                                "word": word_lower,
+                                "score": 10,  # Fixed score since we're doing per-sentence extraction
+                                "context": word_context,
+                                "reason": reason
+                            })
+                            
+                            # Stop once we have 8 keywords total
+                            if len(top_words) >= 8:
+                                break
+                        
+                        if len(top_words) >= 8:
                             break
-                    
-                    # Skip word if it's NOT found in any biased sentence (might be from green sentences)
-                    if not found_in_biased_sentence:
-                        print(f"[FASTAPI DEBUG] Skipping '{w}' - not found in biased sentences", file=sys.stderr)
+                            
+                    except Exception as e:
+                        print(f"[FASTAPI DEBUG] Error processing sentence {sent_idx}: {e}", file=sys.stderr)
                         continue
-                    
-                    seen_words.add(w)
-                    
-                    # Generate context-specific explanation
-                    if surrounding_words and len(surrounding_words) >= 2:
-                        surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words[:2]])
-                        reason = f"The word '{w}' appears alongside {surrounding_str} in this sentence. This combination in a {level} bias context ({round(avg_bias_prob*100,1)}%) suggests emotionally charged or opinion-based framing rather than neutral reporting."
-                    elif surrounding_words:
-                        reason = f"The word '{w}' is used near '{surrounding_words[0]}' in a way that contributes to {level} bias ({round(avg_bias_prob*100,1)}%). The phrasing suggests subjective interpretation rather than factual reporting."
-                    else:
-                        reason = f"The word '{w}' appears in a sentence classified as biased ({level}, {round(avg_bias_prob*100,1)}%). Its usage in this context suggests opinion-based language rather than neutral reporting."
-                    
-                    top_words.append({
-                        "word": w, 
-                        "score": round(c * 10, 2),
-                        "context": word_context or f"Word '{w}' appears multiple times in article",
-                        "reason": reason
-                    })
-                    
+                
+                print(f"[FASTAPI DEBUG] Extracted {len(top_words)} keywords distributed across {len(set(tw['context'] for tw in top_words))} different sentences", file=sys.stderr)
                     # Stop once we have 8 valid keywords from biased sentences
                     if len(top_words) >= 8:
                         break
