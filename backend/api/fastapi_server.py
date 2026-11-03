@@ -528,11 +528,11 @@ def analyze(request: AnalysisRequest):
                     # Download required NLTK data if not present
                     try:
                         nltk.data.find('taggers/averaged_perceptron_tagger_eng')
-                except LookupError:
-                    try:
-                        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
-                    except:
-                        pass
+                    except LookupError:
+                        try:
+                            nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+                        except:
+                            pass
                     
                     try:
                         nltk.data.find('taggers/averaged_perceptron_tagger')
@@ -565,84 +565,81 @@ def analyze(request: AnalysisRequest):
                                     continue
                                 if pos.startswith('VB') or pos.startswith('JJ') or pos.startswith('RB'):
                                     sentence_keywords.append((word_lower, pos))
-                        
-                        # Take top 1-2 keywords from this sentence
-                        for word_lower, pos in sentence_keywords[:2]:
-                            if word_lower in seen_words:
-                                continue
                             
-                            seen_words.add(word_lower)
-                            word_context = sent[:150] + "..." if len(sent) > 150 else sent
+                            # Take top 1-2 keywords from this sentence
+                            for word_lower, pos in sentence_keywords[:2]:
+                                if word_lower in seen_words:
+                                    continue
+                                
+                                seen_words.add(word_lower)
+                                word_context = sent[:150] + "..." if len(sent) > 150 else sent
+                                
+                                # Extract surrounding words
+                                sent_words = re.findall(r'\b\w+\b', sent.lower())
+                                surrounding_words = []
+                                try:
+                                    word_idx = sent_words.index(word_lower)
+                                    start = max(0, word_idx - 2)
+                                    end = min(len(sent_words), word_idx + 3)
+                                    context_window = sent_words[start:end]
+                                    surrounding_words = [wd for wd in context_window if wd != word_lower and wd not in service.STOP_WORDS][:2]
+                                except ValueError:
+                                    pass
+                                
+                                # Generate reason specific to THIS sentence's context
+                                if surrounding_words:
+                                    surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words])
+                                    reason = f"The word '{word_lower}' appears alongside {surrounding_str} in this biased sentence. This combination suggests emotionally charged or opinion-based framing."
+                                else:
+                                    reason = f"The word '{word_lower}' appears in a sentence flagged as biased. Its usage suggests opinion-based language."
+                                
+                                top_words.append({
+                                    "word": word_lower,
+                                    "score": 10,
+                                    "context": word_context,
+                                    "reason": reason
+                                })
+                                
+                                # Stop once we have 8 keywords total
+                                if len(top_words) >= 8:
+                                    break
                             
-                            # Extract surrounding words
-                            sent_words = re.findall(r'\b\w+\b', sent.lower())
-                            surrounding_words = []
-                            try:
-                                word_idx = sent_words.index(word_lower)
-                                start = max(0, word_idx - 2)
-                                end = min(len(sent_words), word_idx + 3)
-                                context_window = sent_words[start:end]
-                                surrounding_words = [wd for wd in context_window if wd != word_lower and wd not in service.STOP_WORDS][:2]
-                            except ValueError:
-                                pass
-                            
-                            # Generate reason specific to THIS sentence's context
-                            if surrounding_words:
-                                surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words])
-                                reason = f"The word '{word_lower}' appears alongside {surrounding_str} in this biased sentence. This combination suggests emotionally charged or opinion-based framing."
-                            else:
-                                reason = f"The word '{word_lower}' appears in a sentence flagged as biased. Its usage suggests opinion-based language."
-                            
-                            top_words.append({
-                                "word": word_lower,
-                                "score": 10,
-                                "context": word_context,
-                                "reason": reason
-                            })
-                            
-                            # Stop once we have 8 keywords total
                             if len(top_words) >= 8:
                                 break
-                        
-                        if len(top_words) >= 8:
-                            break
-                            
-                    except Exception as e:
-                        print(f"[FASTAPI DEBUG] Error processing sentence {sent_idx}: {e}", file=sys.stderr)
-                        # Fallback: simple extraction without POS tagging
-                        simple_words = [w.lower() for w in words if w.lower() not in service.STOP_WORDS and len(w) > 3 and not w[0].isupper()]
-                        for word_lower in simple_words[:2]:
-                            if word_lower in seen_words:
-                                continue
-                            seen_words.add(word_lower)
-                            word_context = sent[:150] + "..." if len(sent) > 150 else sent
-                            top_words.append({
-                                "word": word_lower,
-                                "score": 10,
-                                "context": word_context,
-                                "reason": f"The word '{word_lower}' appears in a biased sentence, suggesting opinion-based language."
-                            })
+                                
+                        except Exception as e:
+                            print(f"[FASTAPI DEBUG] Error processing sentence {sent_idx}: {e}", file=sys.stderr)
+                            # Fallback: simple extraction without POS tagging
+                            simple_words = [w.lower() for w in words if w.lower() not in service.STOP_WORDS and len(w) > 3 and not w[0].isupper()]
+                            for word_lower in simple_words[:2]:
+                                if word_lower in seen_words:
+                                    continue
+                                seen_words.add(word_lower)
+                                word_context = sent[:150] + "..." if len(sent) > 150 else sent
+                                top_words.append({
+                                    "word": word_lower,
+                                    "score": 10,
+                                    "context": word_context,
+                                    "reason": f"The word '{word_lower}' appears in a biased sentence, suggesting opinion-based language."
+                                })
+                                if len(top_words) >= 8:
+                                    break
                             if len(top_words) >= 8:
                                 break
-                        if len(top_words) >= 8:
-                            break
-                
-                print(f"[FASTAPI DEBUG] Extracted {len(top_words)} keywords", file=sys.stderr)
-                    # Stop once we have 8 valid keywords from biased sentences
-                    if len(top_words) >= 8:
-                        break
-                
-                if use_remote_bias_fallback:
-                    for tw in top_words:
-                        tw["remote_fallback"] = True
-                
-                print(f"[FASTAPI DEBUG] Fallback generated {len(top_words)} keywords with contextual analysis", file=sys.stderr)
+                    
+                    print(f"[FASTAPI DEBUG] Extracted {len(top_words)} keywords", file=sys.stderr)
+                    
+                    if use_remote_bias_fallback:
+                        for tw in top_words:
+                            tw["remote_fallback"] = True
+                    
+                    print(f"[FASTAPI DEBUG] Fallback generated {len(top_words)} keywords with contextual analysis", file=sys.stderr)
 
-                # Model already provides reason field with pure model-based explanations
-                # Only add fallback reason for remote/fallback words that don't have one
-                for word_obj in top_words:
-                    if "reason" not in word_obj or not word_obj["reason"]:
-                        word_obj["reason"] = f"Word frequency analysis detected this term appearing {int(word_obj.get('score', 0) / 10)} times in biased context. Full gradient analysis requires local model."
+                    # Model already provides reason field with pure model-based explanations
+                    # Only add fallback reason for remote/fallback words that don't have one
+                    for word_obj in top_words:
+                        if "reason" not in word_obj or not word_obj["reason"]:
+                            word_obj["reason"] = f"Word frequency analysis detected this term appearing {int(word_obj.get('score', 0) / 10)} times in biased context. Full gradient analysis requires local model."
             
             resp = {
                 "bias_level": level,
