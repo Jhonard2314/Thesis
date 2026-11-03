@@ -586,13 +586,19 @@ def analyze(request: AnalysisRequest):
                 
                 top_words = []
                 seen_words = set()
-                for w, c in word_counts.most_common(8):
+                for w, c in word_counts.most_common(15):  # Get more candidates to filter
+                    if w in seen_words:
+                        continue
+                    
                     # Find sentence containing this word for context
+                    # CRITICAL: Only search in BIASED sentences, not all sentences
                     word_context = None
                     surrounding_words = []
+                    found_in_biased_sentence = False
                     
-                    for sent in analysis_sentences[:8]:
+                    for sent in biased_sentences[:8]:  # Changed from analysis_sentences to biased_sentences
                         if w in sent.lower():
+                            found_in_biased_sentence = True
                             word_context = sent[:150] + "..." if len(sent) > 150 else sent
                             
                             # Extract surrounding words (3 before and after)
@@ -609,6 +615,13 @@ def analyze(request: AnalysisRequest):
                                 pass
                             break
                     
+                    # Skip word if it's NOT found in any biased sentence (might be from green sentences)
+                    if not found_in_biased_sentence:
+                        print(f"[FASTAPI DEBUG] Skipping '{w}' - not found in biased sentences", file=sys.stderr)
+                        continue
+                    
+                    seen_words.add(w)
+                    
                     # Generate context-specific explanation
                     if surrounding_words and len(surrounding_words) >= 2:
                         surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words[:2]])
@@ -624,6 +637,10 @@ def analyze(request: AnalysisRequest):
                         "context": word_context or f"Word '{w}' appears multiple times in article",
                         "reason": reason
                     })
+                    
+                    # Stop once we have 8 valid keywords from biased sentences
+                    if len(top_words) >= 8:
+                        break
                 
                 if use_remote_bias_fallback:
                     for tw in top_words:
