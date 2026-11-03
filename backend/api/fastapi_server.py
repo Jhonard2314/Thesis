@@ -592,7 +592,6 @@ def analyze(request: AnalysisRequest):
                 # NEW APPROACH: Extract keywords per biased sentence (distributed across different sentences)
                 top_words = []
                 seen_words = set()
-                sentences_used = set()
                 
                 print(f"[FASTAPI DEBUG] Distributing keywords across {len(biased_sentences)} biased sentences", file=sys.stderr)
                 
@@ -643,7 +642,7 @@ def analyze(request: AnalysisRequest):
                             
                             top_words.append({
                                 "word": word_lower,
-                                "score": 10,  # Fixed score since we're doing per-sentence extraction
+                                "score": 10,
                                 "context": word_context,
                                 "reason": reason
                             })
@@ -657,9 +656,25 @@ def analyze(request: AnalysisRequest):
                             
                     except Exception as e:
                         print(f"[FASTAPI DEBUG] Error processing sentence {sent_idx}: {e}", file=sys.stderr)
-                        continue
+                        # Fallback: simple extraction without POS tagging
+                        simple_words = [w.lower() for w in words if w.lower() not in service.STOP_WORDS and len(w) > 3 and not w[0].isupper()]
+                        for word_lower in simple_words[:2]:
+                            if word_lower in seen_words:
+                                continue
+                            seen_words.add(word_lower)
+                            word_context = sent[:150] + "..." if len(sent) > 150 else sent
+                            top_words.append({
+                                "word": word_lower,
+                                "score": 10,
+                                "context": word_context,
+                                "reason": f"The word '{word_lower}' appears in a biased sentence, suggesting opinion-based language."
+                            })
+                            if len(top_words) >= 8:
+                                break
+                        if len(top_words) >= 8:
+                            break
                 
-                print(f"[FASTAPI DEBUG] Extracted {len(top_words)} keywords distributed across {len(set(tw['context'] for tw in top_words))} different sentences", file=sys.stderr)
+                print(f"[FASTAPI DEBUG] Extracted {len(top_words)} keywords", file=sys.stderr)
                     # Stop once we have 8 valid keywords from biased sentences
                     if len(top_words) >= 8:
                         break
