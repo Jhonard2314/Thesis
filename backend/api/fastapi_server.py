@@ -497,13 +497,18 @@ def analyze(request: AnalysisRequest):
                 if res["label"] == "Biased":
                     biased_sentences.append(analysis_sentences[i])
             
-            # Use biased sentences for keyword extraction (or all if none are biased)
-            sample_text = " ".join(biased_sentences[:8]) if biased_sentences else " ".join(analysis_sentences[:8])
-            print(f"[FASTAPI DEBUG] Using {len(biased_sentences)} biased sentences out of {len(analysis_sentences)} total for keyword extraction", file=sys.stderr)
-            print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}", file=sys.stderr)
+            # STRICT RULE: Only extract keywords if there are biased sentences
+            # If NO biased sentences exist, return empty keywords list
+            if not biased_sentences:
+                print(f"[FASTAPI DEBUG] No biased sentences found - skipping keyword extraction", file=sys.stderr)
+                top_words = []
+            else:
+                sample_text = " ".join(biased_sentences[:8])
+                print(f"[FASTAPI DEBUG] Using {len(biased_sentences)} biased sentences for keyword extraction", file=sys.stderr)
+                print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}", file=sys.stderr)
             
-            top_words = []
-            if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
+                top_words = []
+                if not use_remote_bias_fallback and active_model_loaded and service.bias_tokenizer:
                 print(f"[FASTAPI DEBUG] Calling gradient extraction with model_version={model_version}", file=sys.stderr)
                 try:
                     top_words = service.get_top_biased_words_gradient(sample_text, top_k=8, model_version=model_version)
@@ -648,11 +653,11 @@ def analyze(request: AnalysisRequest):
                 
                 print(f"[FASTAPI DEBUG] Fallback generated {len(top_words)} keywords with contextual analysis", file=sys.stderr)
 
-            # Model already provides reason field with pure model-based explanations
-            # Only add fallback reason for remote/fallback words that don't have one
-            for word_obj in top_words:
-                if "reason" not in word_obj or not word_obj["reason"]:
-                    word_obj["reason"] = f"Word frequency analysis detected this term appearing {int(word_obj.get('score', 0) / 10)} times in biased context. Full gradient analysis requires local model."
+                # Model already provides reason field with pure model-based explanations
+                # Only add fallback reason for remote/fallback words that don't have one
+                for word_obj in top_words:
+                    if "reason" not in word_obj or not word_obj["reason"]:
+                        word_obj["reason"] = f"Word frequency analysis detected this term appearing {int(word_obj.get('score', 0) / 10)} times in biased context. Full gradient analysis requires local model."
             
             resp = {
                 "bias_level": level,
