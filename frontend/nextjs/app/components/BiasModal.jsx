@@ -133,7 +133,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                   )}
                 </div>
 
-                {/* Top biased words with explanations and context */}
+                {/* Top biased words with explanations and context - ALWAYS RED since from biased sentences */}
                 {biasData?.top_words?.length > 0 && (
                   <div>
                     <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
