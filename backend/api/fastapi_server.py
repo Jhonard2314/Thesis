@@ -574,24 +574,53 @@ def analyze(request: AnalysisRequest):
                                 seen_words.add(word_lower)
                                 word_context = sent[:150] + "..." if len(sent) > 150 else sent
                                 
-                                # Extract surrounding words
-                                sent_words = re.findall(r'\b\w+\b', sent.lower())
-                                surrounding_words = []
+                                # Extract surrounding words with position awareness
+                                sent_words_raw = sent.split()
+                                sent_words_lower = [w.lower() for w in sent_words_raw]
+                                words_before = []
+                                words_after = []
+                                
                                 try:
-                                    word_idx = sent_words.index(word_lower)
-                                    start = max(0, word_idx - 2)
-                                    end = min(len(sent_words), word_idx + 3)
-                                    context_window = sent_words[start:end]
-                                    surrounding_words = [wd for wd in context_window if wd != word_lower and wd not in service.STOP_WORDS][:2]
+                                    word_idx = sent_words_lower.index(word_lower)
+                                    words_before = [w for w in sent_words_lower[max(0, word_idx-2):word_idx] if w not in service.STOP_WORDS][-2:]
+                                    words_after = [w for w in sent_words_lower[word_idx+1:min(len(sent_words_lower), word_idx+3)] if w not in service.STOP_WORDS][:2]
                                 except ValueError:
                                     pass
                                 
-                                # Generate reason specific to THIS sentence's context
-                                if surrounding_words:
-                                    surrounding_str = ", ".join([f"'{wd}'" for wd in surrounding_words])
-                                    reason = f"The word '{word_lower}' appears alongside {surrounding_str} in this biased sentence. This combination suggests emotionally charged or opinion-based framing."
+                                # Generate UNIQUE reason based on POS tag and linguistic context
+                                if pos.startswith('VB'):  # VERB
+                                    if words_after:
+                                        reason = f"Action verb '{word_lower}' is used to describe '{words_after[0]}', framing the subject through an emotionally loaded action rather than neutral reporting."
+                                    elif words_before:
+                                        reason = f"The verb '{word_lower}' follows '{words_before[-1]}', creating a subjective characterization that signals opinion rather than factual observation."
+                                    else:
+                                        reason = f"Verb '{word_lower}' introduces subjective action framing, moving beyond neutral description into interpretive language."
+                                
+                                elif pos.startswith('JJ'):  # ADJECTIVE
+                                    if pos == 'JJR':  # Comparative
+                                        reason = f"Comparative adjective '{word_lower}' imposes a value judgment, positioning the subject on an evaluative scale rather than providing objective description."
+                                    elif pos == 'JJS':  # Superlative
+                                        reason = f"Superlative '{word_lower}' represents an extreme value claim, signaling opinion-based assessment rather than measured analysis."
+                                    elif words_after:
+                                        reason = f"Descriptive word '{word_lower}' modifies '{words_after[0]}' with subjective characterization, injecting evaluative language into what could be neutral reporting."
+                                    elif words_before:
+                                        reason = f"Qualifier '{word_lower}' appears after '{words_before[-1]}', adding emotional coloring that transforms factual statement into opinion."
+                                    else:
+                                        reason = f"Adjective '{word_lower}' signals subjective evaluation, introducing bias through descriptive framing."
+                                
+                                elif pos.startswith('RB'):  # ADVERB
+                                    if pos == 'RBR':  # Comparative adverb
+                                        reason = f"Comparative adverb '{word_lower}' intensifies the statement, shifting from objective reporting to subjective emphasis."
+                                    elif words_before:
+                                        reason = f"Adverb '{word_lower}' modifies '{words_before[-1]}', adding subjective intensity that signals opinion-based framing rather than neutral tone."
+                                    elif words_after:
+                                        reason = f"Modifier '{word_lower}' amplifies '{words_after[0]}', introducing emotional emphasis that moves beyond factual reporting."
+                                    else:
+                                        reason = f"Adverb '{word_lower}' adds subjective emphasis, signaling opinion through intensification rather than neutral description."
+                                
                                 else:
-                                    reason = f"The word '{word_lower}' appears in a sentence flagged as biased. Its usage suggests opinion-based language."
+                                    # Generic fallback
+                                    reason = f"Word '{word_lower}' appears in biased context with subjective language patterns."
                                 
                                 top_words.append({
                                     "word": word_lower,
