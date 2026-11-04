@@ -3,6 +3,8 @@
 import { useState } from 'react';
 
 export default function BiasModal({ isOpen, onClose, article, biasData, isLoading, loadingStage, error, onRunBiasAnalysis, modelVersion = 'v2', modelInfo = {} }) {
+  const [hoveredContext, setHoveredContext] = useState(null);
+  
   if (!isOpen) return null;
 
   // Use model info from response if available, fall back to prop

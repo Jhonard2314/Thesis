@@ -463,7 +463,7 @@ def analyze(request: AnalysisRequest):
 
             avg_bias_prob = total_score / len(batch_results)
             
-            level = "High" if avg_bias_prob > 0.65 else "Medium" if avg_bias_prob > 0.50 else "Low"
+            level = "High" if avg_bias_prob > 0.70 else "Medium" if avg_bias_prob > 0.50 else "Low"
             
             # Generate detailed interpretation
             interpretation = ""
@@ -587,40 +587,47 @@ def analyze(request: AnalysisRequest):
                                 except ValueError:
                                     pass
                                 
-                                # Generate UNIQUE reason based on POS tag and linguistic context
-                                if pos.startswith('VB'):  # VERB
-                                    if words_after:
-                                        reason = f"Action verb '{word_lower}' is used to describe '{words_after[0]}', framing the subject through an emotionally loaded action rather than neutral reporting."
-                                    elif words_before:
-                                        reason = f"The verb '{word_lower}' follows '{words_before[-1]}', creating a subjective characterization that signals opinion rather than factual observation."
-                                    else:
-                                        reason = f"Verb '{word_lower}' introduces subjective action framing, moving beyond neutral description into interpretive language."
+                                # Generate UNIQUE reason - 5 variations per POS type for maximum diversity
+                                variation_idx = len(top_words) % 5  # Cycle through 5 different phrasings
                                 
-                                elif pos.startswith('JJ'):  # ADJECTIVE
-                                    if pos == 'JJR':  # Comparative
-                                        reason = f"Comparative adjective '{word_lower}' imposes a value judgment, positioning the subject on an evaluative scale rather than providing objective description."
-                                    elif pos == 'JJS':  # Superlative
-                                        reason = f"Superlative '{word_lower}' represents an extreme value claim, signaling opinion-based assessment rather than measured analysis."
-                                    elif words_after:
-                                        reason = f"Descriptive word '{word_lower}' modifies '{words_after[0]}' with subjective characterization, injecting evaluative language into what could be neutral reporting."
-                                    elif words_before:
-                                        reason = f"Qualifier '{word_lower}' appears after '{words_before[-1]}', adding emotional coloring that transforms factual statement into opinion."
+                                if pos.startswith('VB'):  # VERB - 5 unique explanations
+                                    if variation_idx == 0:
+                                        reason = f"Action verb '{word_lower}' frames events through emotional narrative rather than factual description."
+                                    elif variation_idx == 1 and words_after:
+                                        reason = f"Using '{word_lower}' to characterize '{words_after[0]}' introduces interpretive judgment instead of neutral reporting."
+                                    elif variation_idx == 2 and words_before:
+                                        reason = f"Placing '{word_lower}' after '{words_before[-1]}' creates loaded framing that signals opinion-based language."
+                                    elif variation_idx == 3:
+                                        reason = f"The verb '{word_lower}' carries subjective connotations that move beyond objective observation."
                                     else:
-                                        reason = f"Adjective '{word_lower}' signals subjective evaluation, introducing bias through descriptive framing."
+                                        reason = f"'{word_lower.capitalize()}' functions as an opinion marker, introducing bias through verb choice."
                                 
-                                elif pos.startswith('RB'):  # ADVERB
-                                    if pos == 'RBR':  # Comparative adverb
-                                        reason = f"Comparative adverb '{word_lower}' intensifies the statement, shifting from objective reporting to subjective emphasis."
-                                    elif words_before:
-                                        reason = f"Adverb '{word_lower}' modifies '{words_before[-1]}', adding subjective intensity that signals opinion-based framing rather than neutral tone."
-                                    elif words_after:
-                                        reason = f"Modifier '{word_lower}' amplifies '{words_after[0]}', introducing emotional emphasis that moves beyond factual reporting."
+                                elif pos.startswith('JJ'):  # ADJECTIVE - 5 unique explanations
+                                    if variation_idx == 0 and pos in ['JJR', 'JJS']:
+                                        reason = f"{'Comparative' if pos == 'JJR' else 'Superlative'} form '{word_lower}' makes extreme value claims typical of opinion writing."
+                                    elif variation_idx == 1 and words_after:
+                                        reason = f"Labeling '{words_after[0]}' as '{word_lower}' imposes subjective judgment rather than letting facts speak."
+                                    elif variation_idx == 2:
+                                        reason = f"The qualifier '{word_lower}' adds emotional coloring that transforms neutral statements into opinion."
+                                    elif variation_idx == 3 and words_before:
+                                        reason = f"Combining '{words_before[-1]}' with '{word_lower}' creates evaluative framing characteristic of biased reporting."
                                     else:
-                                        reason = f"Adverb '{word_lower}' adds subjective emphasis, signaling opinion through intensification rather than neutral description."
+                                        reason = f"Descriptive choice '{word_lower}' signals the author's perspective rather than objective description."
+                                
+                                elif pos.startswith('RB'):  # ADVERB - 5 unique explanations
+                                    if variation_idx == 0:
+                                        reason = f"Intensifier '{word_lower}' amplifies statements beyond what neutral reporting requires."
+                                    elif variation_idx == 1 and words_after:
+                                        reason = f"Modifying '{words_after[0]}' with '{word_lower}' adds subjective emphasis absent in factual writing."
+                                    elif variation_idx == 2 and words_before:
+                                        reason = f"The modifier '{word_lower}' strengthens '{words_before[-1]}' with opinion-based intensity."
+                                    elif variation_idx == 3:
+                                        reason = f"'{word_lower.capitalize()}' functions to heighten emotional impact rather than convey facts."
+                                    else:
+                                        reason = f"Adverb '{word_lower}' introduces subjective degree that signals interpretive rather than factual language."
                                 
                                 else:
-                                    # Generic fallback
-                                    reason = f"Word '{word_lower}' appears in biased context with subjective language patterns."
+                                    reason = f"Term '{word_lower}' appears in biased linguistic patterns detected by the model."
                                 
                                 top_words.append({
                                     "word": word_lower,
