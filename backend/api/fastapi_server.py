@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import re
 import json
@@ -89,13 +89,13 @@ class AnalysisRequest(BaseModel):
     content: Optional[str] = None
     snippet: Optional[str] = None        # Fallback text when URL scraping fails
     scraped_content: Optional[str] = None  # Pre-screened content cached at fetch time
-    summary: Optional[str] = None        # Pre-computed summary — skips BART re-run in analyze_bias
+    summary: Optional[str] = None        # Pre-computed summary â€” skips BART re-run in analyze_bias
     model_version: str = "v2"            # "v1" = 83% 3-epoch model, "v2" = 96% 10-epoch model
     action: str = "analyze_bias"
 
 @app.get("/")
 def read_root():
-    # Status fields are ALWAYS initialized in NewsService.__init__ → they are the single source of truth.
+    # Status fields are ALWAYS initialized in NewsService.__init__ â†’ they are the single source of truth.
     # No need for `or` fallbacks; fallbacks here would hide bugs where status didn't get updated on a path.
     resp = {
         "status": "online",
@@ -214,7 +214,7 @@ def fetch_news(query: Optional[str] = None, category: Optional[str] = None):
                 "publishedAt":    a.get("pubDate"),
                 "urlToImage":     a.get("image_url"),
                 "description":    a.get("snippet"),
-                # Pre-screening fields — used by frontend to badge cards and by /analyze to skip re-scraping
+                # Pre-screening fields â€” used by frontend to badge cards and by /analyze to skip re-scraping
                 "scrapable":      a.get("scrapable", False),
                 "snippet_only":   a.get("snippet_only", False),
                 "scraped_content": a.get("scraped_content")  # cached content from pre-screen (avoids re-scrape)
@@ -231,7 +231,7 @@ def analyze(request: AnalysisRequest):
         if not request.url and not request.content:
             raise HTTPException(status_code=400, detail="URL or content required")
 
-        # 1. Get content — priority: already-extracted content > pre-screened cache > live scrape > snippet fallback
+        # 1. Get content â€” priority: already-extracted content > pre-screened cache > live scrape > snippet fallback
         content = request.content or request.scraped_content or service.get_full_content(request.url)
         
         # Clean timestamps from manually pasted or pre-cached content
@@ -258,10 +258,10 @@ def analyze(request: AnalysisRequest):
         if not content:
             return {"error": "Could not retrieve content for this article."}
 
-        # 🔹 Select model version requested
+        # ðŸ”¹ Select model version requested
         model_version = request.model_version if request.model_version in ("v1", "v2") else "v2"
 
-        # 🔹 Graceful bias-model state handling
+        # ðŸ”¹ Graceful bias-model state handling
         # Route status/model references based on selected version
         active_status = service.bias_model_v1_status if model_version == "v1" else service.bias_model_status
         bias_elapsed = service.get_loading_elapsed("bias" if model_version == "v2" else "bias_v1")
@@ -683,3 +683,4 @@ def analyze(request: AnalysisRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7860)
+
