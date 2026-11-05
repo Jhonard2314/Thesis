@@ -139,11 +139,23 @@ export default function Home() {
     setTimeout(() => analyzeInputRef.current?.focus(), 50);
   };
 
+  // Build a fake article object for BiasModal from URL/text input
+  const buildAnalyzeArticle = (url, text) => ({
+    title: url ? url.replace(/^https?:\/\/(www\.)?/, '').split('/').slice(0,3).join('/') : 'Pasted Article',
+    url: url || null,
+    source: { name: url ? new URL(url).hostname.replace('www.', '') : 'Direct Input' },
+    description: text?.slice(0, 200) || '',
+  });
+
   const analyzeRunFull = async (content, url = null) => {
     setAnalyzeStage('analyzing'); setAnalyzeSummary(null); setAnalyzeBias(null);
-    setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    // Open modal immediately with loading state
+    const article = buildAnalyzeArticle(url, content);
+    setSelectedArticle(article);
+    setBiasData(null); setBiasLoading(true); setBiasError(null);
+    setLoadingStage('analyzing');
+    setIsModalOpen(true);
     try {
-      // Fire summary and bias in parallel — both have the content already
       const [r1, r2] = await Promise.all([
         fetch('/api/bias', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -155,12 +167,16 @@ export default function Home() {
         }),
       ]);
       const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
-      if (d1.error) { setAnalyzeError(d1.error); setAnalyzeStage('error'); return; }
-      if (d2.error) { setAnalyzeError(d2.error); setAnalyzeStage('error'); return; }
-      setAnalyzeSummary(d1);
-      setAnalyzeBias(d2); setAnalyzeStage('done');
-      setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-    } catch (e) { setAnalyzeError(e.message || 'Network error'); setAnalyzeStage('error'); }
+      if (d1.error) { setBiasError(d1.error); setBiasLoading(false); setAnalyzeStage('error'); return; }
+      if (d2.error) { setBiasError(d2.error); setBiasLoading(false); setAnalyzeStage('error'); return; }
+      setBiasData({ ...d2, summary: d1.summary, full_content: d1.full_content });
+      setBiasLoading(false);
+      setAnalyzeStage('done');
+    } catch (e) {
+      setBiasError(e.message || 'Network error');
+      setBiasLoading(false);
+      setAnalyzeStage('error');
+    }
   };
 
   const analyzeSubmit = async () => {
@@ -169,30 +185,38 @@ export default function Home() {
     if (!isUrl(trimmed)) { await analyzeRunFull(trimmed); return; }
 
     setAnalyzeStage('extracting'); setAnalyzeSummary(null); setAnalyzeBias(null); setAnalyzeError('');
+    // Open modal with extracting spinner
+    const article = buildAnalyzeArticle(trimmed, '');
+    setSelectedArticle(article);
+    setBiasData(null); setBiasLoading(true); setBiasError(null);
+    setLoadingStage('extracting');
+    setIsModalOpen(true);
     try {
-      // Step 1: scrape content + summary
       const r = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed, action: 'get_summary' }),
       });
       const d = await r.json();
       if (d.error) {
+        setIsModalOpen(false);
         setAnalyzeSavedUrl(trimmed); setAnalyzeStage('needs_text');
         setTimeout(() => analyzePasteRef.current?.focus(), 100); return;
       }
-      setAnalyzeSummary(d); setAnalyzeStage('analyzing');
-      setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-
-      // Step 2: bias analysis — pass the summary so backend skips BART re-run
+      setLoadingStage('analyzing'); setAnalyzeStage('analyzing');
       const r2 = await fetch('/api/bias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed, content: d.full_content, summary: d.summary, model_version: modelVersion, action: 'analyze_bias' }),
       });
       const d2 = await r2.json();
-      if (d2.error) { setAnalyzeError(d2.error); setAnalyzeStage('error'); return; }
-      setAnalyzeBias(d2); setAnalyzeStage('done');
-      setTimeout(() => analyzeResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-    } catch (e) { setAnalyzeError(e.message || 'Network error'); setAnalyzeStage('error'); }
+      if (d2.error) { setBiasError(d2.error); setBiasLoading(false); setAnalyzeStage('error'); return; }
+      setBiasData({ ...d2, summary: d.summary, full_content: d.full_content });
+      setBiasLoading(false);
+      setAnalyzeStage('done');
+    } catch (e) {
+      setBiasError(e.message || 'Network error');
+      setBiasLoading(false);
+      setAnalyzeStage('error');
+    }
   };
 
   const analyzeSubmitPasted = async () => {
