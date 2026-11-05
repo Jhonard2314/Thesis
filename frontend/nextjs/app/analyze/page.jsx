@@ -189,31 +189,33 @@ export default function AnalyzePage() {
 
           {/* needs_text */}
           {stage === 'needs_text' && (
-            <div className="rounded-2xl p-6 max-w-2xl mx-auto" style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
+            <div className="rounded-2xl p-6 max-w-2xl mx-auto"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <div className="flex items-start gap-3 mb-5">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: '#2b2200' }}>
-                  <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                  <svg className="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-white">Couldn't access this article automatically</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Open the article, select all text, copy and paste below.</p>
+                  <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Couldn't access this article automatically</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Open the article, select all text, copy and paste below.</p>
                 </div>
               </div>
               {savedUrl && (
-                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-xs" style={{ background: '#0D1B2E', border: '1px solid #e2e8f0' }}>
-                  <span className="truncate" style={{ color: '#64748b' }}>{savedUrl}</span>
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-xs"
+                  style={{ background: 'var(--bg-card-alt)', border: '1px solid var(--border)' }}>
+                  <span className="truncate" style={{ color: 'var(--text-muted)' }}>{savedUrl}</span>
                   <a href={savedUrl} target="_blank" rel="noopener noreferrer"
-                    className="ml-auto font-medium shrink-0" style={{ color: '#0EA5E9' }}>Open ↗</a>
+                    className="ml-auto font-medium shrink-0" style={{ color: 'var(--accent)' }}>Open ↗</a>
                 </div>
               )}
               <textarea ref={pasteRef} value={pastedText} onChange={(e) => setPastedText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submitPasted(); }}
                 rows={8} placeholder="Paste the full article text here…"
                 className="w-full rounded-xl text-sm leading-relaxed p-4 outline-none resize-none"
-                style={{ background: '#0D1B2E', border: '1px solid #e2e8f0', color: '#0f172a', caretColor: '#0EA5E9' }}/>
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)', caretColor: 'var(--accent)' }}/>
               {pastedText.trim() && (
                 <p className="text-xs mt-1.5" style={{ color: '#94a3b8' }}>{pastedText.trim().split(/\s+/).length} words</p>
               )}
@@ -236,16 +238,17 @@ export default function AnalyzePage() {
 
           {/* Error */}
           {stage === 'error' && (
-            <div className="rounded-2xl p-6 text-center max-w-lg mx-auto" style={{ background: '#2b0d0d', border: '1px solid #7f1d1d' }}>
-              <p className="text-red-400 font-bold mb-1">Analysis Failed</p>
-              <p className="text-red-500 text-sm mb-4">{errorMsg}</p>
+            <div className="rounded-2xl p-6 text-center max-w-lg mx-auto"
+              style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)' }}>
+              <p className="text-red-500 font-bold mb-1">Analysis Failed</p>
+              <p className="text-red-400 text-sm mb-4">{errorMsg}</p>
               <div className="flex gap-3 justify-center flex-wrap">
                 <button onClick={reset} className="px-5 py-2 rounded-lg text-sm font-medium"
-                  style={{ background: '#F44336', color: '#fff' }}>Try Again</button>
+                  style={{ background: '#ef4444', color: '#fff' }}>Try Again</button>
                 {isUrl(input.trim()) && (
                   <button onClick={() => { setSavedUrl(input.trim()); setStage('needs_text'); setTimeout(() => pasteRef.current?.focus(), 100); }}
                     className="px-5 py-2 rounded-lg text-sm font-medium"
-                    style={{ background: '#ffffff', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                     Paste Article Text Instead
                   </button>
                 )}
