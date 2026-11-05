@@ -140,7 +140,7 @@ export default function AnalyzePage() {
               placeholder="Paste a URL or article text to analyze…"
               disabled={loading || stage === 'needs_text'}
               className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50"
-              style={{ color: '#E2EAF4', caretColor: '#17C3B2' }}/>
+              style={{ color: 'rgba(15,23,42,1)', caretColor: '#17C3B2' }}/>
             {input && !loading && stage !== 'needs_text' && (
               <button onClick={reset} style={{ color: '#5A7A9A' }}
                 className="mt-1 shrink-0 hover:text-white transition-colors">
@@ -212,7 +212,7 @@ export default function AnalyzePage() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submitPasted(); }}
                 rows={8} placeholder="Paste the full article text here…"
                 className="w-full rounded-xl text-sm leading-relaxed p-4 outline-none resize-none"
-                style={{ background: '#0D1B2E', border: '1px solid #1E3A5F', color: '#E2EAF4', caretColor: '#17C3B2' }}/>
+                style={{ background: '#0D1B2E', border: '1px solid #1E3A5F', color: 'rgba(15,23,42,1)', caretColor: '#17C3B2' }}/>
               {pastedText.trim() && (
                 <p className="text-xs mt-1.5" style={{ color: '#5A7A9A' }}>{pastedText.trim().split(/\s+/).length} words</p>
               )}
@@ -267,11 +267,11 @@ export default function AnalyzePage() {
             <div className="flex gap-6 mt-2">
               {/* Left panel */}
               <div className="w-72 shrink-0 space-y-4">
-                <div className="rounded-xl p-5" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>Executive Summary</h4>
+                <div className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,1)', border: '1px solid rgba(226,232,240,1)' }}>
+                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(71,85,105,1)' }}>Executive Summary</h4>
                   {summaryData.summary
-                    ? <p className="text-sm leading-relaxed italic" style={{ color: '#B8C5D6' }}>"{summaryData.summary}"</p>
-                    : <p className="text-sm italic" style={{ color: '#5A7A9A' }}>Summary unavailable.</p>}
+                    ? <p className="text-sm leading-relaxed italic" style={{ color: 'rgba(51,65,85,1)' }}>"{summaryData.summary}"</p>
+                    : <p className="text-sm italic" style={{ color: 'rgba(148,163,184,1)' }}>Summary unavailable.</p>}
                 </div>
 
                 {(stage === 'analyzing' || stage === 'done') && (
@@ -291,29 +291,32 @@ export default function AnalyzePage() {
                   </div>
                 )}
 
-                <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>Bias Grading Scale</h4>
+                <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,1)', border: '1px solid rgba(226,232,240,1)' }}>
+                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(71,85,105,1)' }}>Bias Grading Scale</h4>
                   <div className="w-full h-2 rounded-full overflow-hidden flex mb-3">
                     <div className="bg-green-500 h-full w-1/2"/>
                     <div className="bg-yellow-400 h-full w-[20%]"/>
                     <div className="bg-red-500 h-full w-[30%]"/>
                   </div>
                   <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% – 50%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51% – 70%</span><span className="italic" style={{ color: '#8BA3C1' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-400 font-bold">71% – 100%</span><span className="italic" style={{ color: '#8BA3C1' }}>Strongly Biased</span></div>
+                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% – 50%</span><span className="italic" style={{ color: 'rgba(71,85,105,1)' }}>Likely Factual</span></div>
+                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51% – 70%</span><span className="italic" style={{ color: 'rgba(71,85,105,1)' }}>Likely Biased</span></div>
+                    <div className="flex justify-between"><span className="text-red-400 font-bold">71% – 100%</span><span className="italic" style={{ color: 'rgba(71,85,105,1)' }}>Strongly Biased</span></div>
                   </div>
                 </div>
 
-                {biasData?.top_words?.length > 0 && biasData.bias_level !== 'Low' && (
-                  <div className="rounded-xl p-4" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: '#8BA3C1' }}>Key Biased Markers</h4>
+                {biasData?.top_words?.length > 0 && (
+                  <div className="rounded-xl p-4" style={{ background: 'rgba(248,250,252,1)', border: '1px solid rgba(226,232,240,1)' }}>
+                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(71,85,105,1)' }}>Key Biased Markers</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {biasData.top_words.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                          style={{ background: '#1A0808', border: '1px solid #7f1d1d' }}>
-                          <span className="text-[11px] font-bold text-red-400">{item.word}</span>
-                          <span className="text-[9px] text-red-600 font-mono">{item.score}</span>
+                        <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
+                          style={{ 
+                            background: biasData.bias_level === 'High' ? 'rgba(254,226,226,1)' : biasData.bias_level === 'Medium' ? 'rgba(254,243,199,1)' : 'rgba(220,252,231,1)', 
+                            border: px solid \ 
+                          }}>
+                          <span className="text-[11px] font-bold" style={{ color: biasData.bias_level === 'High' ? '#b91c1c' : biasData.bias_level === 'Medium' ? '#b45309' : '#047857' }}>{item.word}</span>
+                          <span className="text-[9px] font-mono" style={{ color: biasData.bias_level === 'High' ? '#dc2626' : biasData.bias_level === 'Medium' ? '#d97706' : '#059669' }}>{item.score}</span>
                         </div>
                       ))}
                     </div>
@@ -330,12 +333,12 @@ export default function AnalyzePage() {
               </div>
 
               {/* Right panel */}
-              <div className="flex-1 rounded-xl p-6 min-h-[400px]" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
-                <h4 className="text-[9px] font-bold uppercase tracking-widest mb-5" style={{ color: '#8BA3C1' }}>Full Article Context</h4>
+              <div className="flex-1 rounded-xl p-6 min-h-[400px]" style={{ background: 'rgba(255,255,255,1)', border: '1px solid rgba(226,232,240,1)' }}>
+                <h4 className="text-[9px] font-bold uppercase tracking-widest mb-5" style={{ color: 'rgba(71,85,105,1)' }}>Full Article Context</h4>
                 {!biasData?.sentence_breakdown ? (
                   <div className="space-y-3">
                     {(summaryData?.full_content || '').split('\n').filter(Boolean).map((para, i) => (
-                      <p key={i} className="text-sm leading-relaxed" style={{ color: '#5A7A9A' }}>{para}</p>
+                      <p key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(71,85,105,1)' }}>{para}</p>
                     ))}
                     {stage === 'analyzing' && (
                       <div className="mt-6 rounded-xl p-6 text-center" style={{ border: '2px dashed #1E3A5F' }}>
@@ -351,14 +354,14 @@ export default function AnalyzePage() {
                         <span key={idx}
                           className="inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors"
                           style={{
-                            color: '#E2EAF4',
+                            color: 'rgba(15,23,42,1)',
                             background: biased ? 'rgba(244,67,54,0.15)' : 'rgba(76,175,80,0.1)',
                             borderBottom: biased ? '2px solid rgba(244,67,54,0.6)' : '2px solid rgba(76,175,80,0.4)',
                           }}
                           title={`${s.label}: ${s.score}%`}>
                           {s.text}{' '}
                           <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal"
-                            style={{ background: '#0B1628', color: '#E2EAF4', border: '1px solid #1E3A5F' }}>
+                            style={{ background: '#0B1628', color: 'rgba(15,23,42,1)', border: '1px solid #1E3A5F' }}>
                             {s.label}: {s.score}%
                             {s.reasoning && <span className="block mt-1 italic font-normal" style={{ color: '#8BA3C1' }}>"{s.reasoning}"</span>}
                           </span>
