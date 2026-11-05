@@ -6,7 +6,7 @@ import Link from 'next/link';
 const isUrl = (str) => {
   try { new URL(str); return str.startsWith('http'); } catch { return false; }
 };
-const getBiasColor = (l) => ({ Low: '#10b981', Medium: '#f59e0b', High: '#ef4444' }[l] ?? '#8BA3C1');
+const getBiasColor = (l) => ({ Low: '#10b981', Medium: '#f59e0b', High: '#ef4444' }[l] ?? '#64748b');
 const getBiasBg    = (l) => ({ Low: 'rgba(16, 185, 129, 0.08)', Medium: 'rgba(245, 158, 11, 0.08)', High: 'rgba(239, 68, 68, 0.08)' }[l] ?? '#0F1E38');
 const getBiasBadge = (l) => ({ Low: 'bg-green-100 text-green-700', Medium: 'bg-amber-100 text-amber-700', High: 'bg-red-100 text-red-700' }[l] ?? 'bg-slate-100 text-slate-600');
 
@@ -92,21 +92,21 @@ export default function AnalyzePage() {
   const loading   = stage === 'extracting' || stage === 'analyzing';
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0B1628' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
 
       {/* Nav */}
       <header className="sticky top-0 z-50 px-6 py-3 flex items-center justify-between"
-        style={{ background: '#0D1B2E', borderBottom: '1px solid #1E3A5F' }}>
+        style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
         <Link href="/" className="flex items-center gap-2 text-sm font-medium transition-colors"
-          style={{ color: '#8BA3C1' }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#17C3B2'}
-          onMouseLeave={(e) => e.currentTarget.style.color = '#8BA3C1'}>
+          style={{ color: '#64748b' }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#0EA5E9'}
+          onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
           </svg>
           Back to News
         </Link>
-        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#17C3B2' }}>
+        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#0EA5E9' }}>
           Fine-Tuned Transformer-Based System
         </span>
       </header>
@@ -114,10 +114,10 @@ export default function AnalyzePage() {
       {/* Logo + input */}
       <div className={`flex flex-col items-center justify-center transition-all duration-500 ${stage === 'idle' ? 'flex-1' : 'pt-10 pb-6'}`}>
         <div className="mb-8 text-center select-none">
-          <h1 className="text-2xl font-black tracking-tight leading-tight text-center" style={{ color: '#17C3B2' }}>
+          <h1 className="text-2xl font-black tracking-tight leading-tight text-center" style={{ color: '#0EA5E9' }}>
             Fine-Tuned Transformer-Based System
           </h1>
-          <p className="text-xs uppercase tracking-widest mt-1 text-center" style={{ color: '#8BA3C1' }}>
+          <p className="text-xs uppercase tracking-widest mt-1 text-center" style={{ color: '#64748b' }}>
             Bias Assessment and Summarization of English News Articles · Powered by BERT-BABE
           </p>
         </div>
@@ -125,13 +125,13 @@ export default function AnalyzePage() {
         <div className="w-full max-w-2xl px-4">
           {/* Input bar */}
           <div className="flex items-start gap-3 rounded-2xl px-4 py-3 transition-all"
-            style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
+            style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
             {isUrl(input) ? (
-              <svg className="w-5 h-5 mt-1 shrink-0" style={{ color: '#17C3B2' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 mt-1 shrink-0" style={{ color: '#0EA5E9' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
               </svg>
             ) : (
-              <svg className="w-5 h-5 mt-1 shrink-0" style={{ color: '#8BA3C1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 mt-1 shrink-0" style={{ color: '#64748b' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             )}
@@ -140,9 +140,9 @@ export default function AnalyzePage() {
               placeholder="Paste a URL or article text to analyze…"
               disabled={loading || stage === 'needs_text'}
               className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50"
-              style={{ color: 'rgba(15,23,42,1)', caretColor: '#17C3B2' }}/>
+              style={{ color: '#0f172a', caretColor: '#0EA5E9' }}/>
             {input && !loading && stage !== 'needs_text' && (
-              <button onClick={reset} style={{ color: '#5A7A9A' }}
+              <button onClick={reset} style={{ color: '#94a3b8' }}
                 className="mt-1 shrink-0 hover:text-white transition-colors">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
@@ -155,7 +155,7 @@ export default function AnalyzePage() {
           <div className="flex items-center justify-center gap-3 mt-4">
             <button onClick={analyze} disabled={!input.trim() || loading || stage === 'needs_text'}
               className="px-6 py-2.5 text-sm font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: '#17C3B2', color: '#0B1628' }}>
+              style={{ background: '#0EA5E9', color: '#ffffff' }}>
               {loading ? (
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -168,14 +168,14 @@ export default function AnalyzePage() {
             </button>
             {stage !== 'idle' && (
               <button onClick={reset} className="px-6 py-2.5 text-sm font-medium rounded-xl transition-colors"
-                style={{ background: 'transparent', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                style={{ background: 'transparent', border: '1px solid #e2e8f0', color: '#64748b' }}>
                 New Analysis
               </button>
             )}
           </div>
 
           {stage === 'idle' && (
-            <p className="text-center text-xs mt-4" style={{ color: '#5A7A9A' }}>
+            <p className="text-center text-xs mt-4" style={{ color: '#94a3b8' }}>
               Paste a news article URL <span className="mx-1 opacity-40">·</span> or paste the article text directly
             </p>
           )}
@@ -188,7 +188,7 @@ export default function AnalyzePage() {
 
           {/* needs_text */}
           {stage === 'needs_text' && (
-            <div className="rounded-2xl p-6 max-w-2xl mx-auto" style={{ background: '#112240', border: '1px solid #1E3A5F' }}>
+            <div className="rounded-2xl p-6 max-w-2xl mx-auto" style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
               <div className="flex items-start gap-3 mb-5">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: '#2b2200' }}>
@@ -198,37 +198,37 @@ export default function AnalyzePage() {
                 </div>
                 <div>
                   <p className="font-bold text-sm text-white">Couldn't access this article automatically</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#8BA3C1' }}>Open the article, select all text, copy and paste below.</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Open the article, select all text, copy and paste below.</p>
                 </div>
               </div>
               {savedUrl && (
-                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-xs" style={{ background: '#0D1B2E', border: '1px solid #1E3A5F' }}>
-                  <span className="truncate" style={{ color: '#8BA3C1' }}>{savedUrl}</span>
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-xs" style={{ background: '#0D1B2E', border: '1px solid #e2e8f0' }}>
+                  <span className="truncate" style={{ color: '#64748b' }}>{savedUrl}</span>
                   <a href={savedUrl} target="_blank" rel="noopener noreferrer"
-                    className="ml-auto font-medium shrink-0" style={{ color: '#17C3B2' }}>Open ↗</a>
+                    className="ml-auto font-medium shrink-0" style={{ color: '#0EA5E9' }}>Open ↗</a>
                 </div>
               )}
               <textarea ref={pasteRef} value={pastedText} onChange={(e) => setPastedText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submitPasted(); }}
                 rows={8} placeholder="Paste the full article text here…"
                 className="w-full rounded-xl text-sm leading-relaxed p-4 outline-none resize-none"
-                style={{ background: '#0D1B2E', border: '1px solid #1E3A5F', color: 'rgba(15,23,42,1)', caretColor: '#17C3B2' }}/>
+                style={{ background: '#0D1B2E', border: '1px solid #e2e8f0', color: '#0f172a', caretColor: '#0EA5E9' }}/>
               {pastedText.trim() && (
-                <p className="text-xs mt-1.5" style={{ color: '#5A7A9A' }}>{pastedText.trim().split(/\s+/).length} words</p>
+                <p className="text-xs mt-1.5" style={{ color: '#94a3b8' }}>{pastedText.trim().split(/\s+/).length} words</p>
               )}
               <div className="flex gap-3 mt-4">
                 <button onClick={submitPasted} disabled={pastedText.trim().split(/\s+/).length < 30}
                   className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: '#17C3B2', color: '#0B1628' }}>
+                  style={{ background: '#0EA5E9', color: '#ffffff' }}>
                   Analyze Pasted Text
                 </button>
                 <button onClick={reset} className="px-5 py-2.5 text-sm font-medium rounded-xl transition-colors"
-                  style={{ background: 'transparent', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                  style={{ background: 'transparent', border: '1px solid #e2e8f0', color: '#64748b' }}>
                   Cancel
                 </button>
               </div>
               {pastedText.trim().split(/\s+/).length < 30 && pastedText.trim().length > 0 && (
-                <p className="text-xs text-center mt-2" style={{ color: '#5A7A9A' }}>Need at least 30 words.</p>
+                <p className="text-xs text-center mt-2" style={{ color: '#94a3b8' }}>Need at least 30 words.</p>
               )}
             </div>
           )}
@@ -244,7 +244,7 @@ export default function AnalyzePage() {
                 {isUrl(input.trim()) && (
                   <button onClick={() => { setSavedUrl(input.trim()); setStage('needs_text'); setTimeout(() => pasteRef.current?.focus(), 100); }}
                     className="px-5 py-2 rounded-lg text-sm font-medium"
-                    style={{ background: '#112240', border: '1px solid #1E3A5F', color: '#8BA3C1' }}>
+                    style={{ background: '#ffffff', border: '1px solid #e2e8f0', color: '#64748b' }}>
                     Paste Article Text Instead
                   </button>
                 )}
@@ -254,7 +254,7 @@ export default function AnalyzePage() {
 
           {/* Loading */}
           {loading && !summaryData && (
-            <div className="flex flex-col items-center py-16" style={{ color: '#8BA3C1' }}>
+            <div className="flex flex-col items-center py-16" style={{ color: '#64748b' }}>
               <div className="w-10 h-10 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mb-4"/>
               <p className="text-sm font-medium">
                 {stage === 'extracting' ? 'Fetching article content…' : 'Running analysis…'}
@@ -275,17 +275,17 @@ export default function AnalyzePage() {
                 </div>
 
                 {(stage === 'analyzing' || stage === 'done') && (
-                  <div className="rounded-xl p-5 text-center" style={{ background: biasData ? getBiasBg(biasData.bias_level) : '#112240', border: `1px solid ${biasData ? getBiasColor(biasData.bias_level) + '30' : '#1E3A5F'}` }}>
+                  <div className="rounded-xl p-5 text-center" style={{ background: '#ffffff', border: `1px solid ${biasData ? getBiasColor(biasData.bias_level) + '30' : '#e2e8f0'}` }}>
                     {biasData ? (
                       <>
                         <div className="text-5xl font-black mb-1" style={{ color: getBiasColor(biasData.bias_level) }}>{biasData.bias_score}%</div>
                         <span className={`inline-block px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-3 ${getBiasBadge(biasData.bias_level)}`}>Bias Score</span>
-                        <p className="text-xs leading-relaxed" style={{ color: '#B8C5D6' }}>{biasData.explanation}</p>
+                        <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>{biasData.explanation}</p>
                       </>
                     ) : (
                       <div className="flex flex-col items-center py-4">
                         <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"/>
-                        <p className="text-[10px] font-medium uppercase tracking-widest animate-pulse" style={{ color: '#17C3B2' }}>Analyzing…</p>
+                        <p className="text-[10px] font-medium uppercase tracking-widest animate-pulse" style={{ color: '#0EA5E9' }}>Analyzing…</p>
                       </div>
                     )}
                   </div>
@@ -326,7 +326,7 @@ export default function AnalyzePage() {
                 {(savedUrl || isUrl(input.trim())) && (
                   <a href={savedUrl || input.trim()} target="_blank" rel="noopener noreferrer"
                     className="block w-full text-center text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors"
-                    style={{ background: '#17C3B2', color: '#0B1628' }}>
+                    style={{ background: '#0EA5E9', color: '#ffffff' }}>
                     Visit Original Source
                   </a>
                 )}
@@ -341,8 +341,8 @@ export default function AnalyzePage() {
                       <p key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(71,85,105,1)' }}>{para}</p>
                     ))}
                     {stage === 'analyzing' && (
-                      <div className="mt-6 rounded-xl p-6 text-center" style={{ border: '2px dashed #1E3A5F' }}>
-                        <p className="text-sm italic" style={{ color: '#5A7A9A' }}>Bias highlighting will appear here after analysis…</p>
+                      <div className="mt-6 rounded-xl p-6 text-center" style={{ border: '2px dashed #e2e8f0' }}>
+                        <p className="text-sm italic" style={{ color: '#94a3b8' }}>Bias highlighting will appear here after analysis…</p>
                       </div>
                     )}
                   </div>
@@ -354,16 +354,16 @@ export default function AnalyzePage() {
                         <span key={idx}
                           className="inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors"
                           style={{
-                            color: 'rgba(15,23,42,1)',
+                            color: '#0f172a',
                             background: biased ? 'rgba(244,67,54,0.15)' : 'rgba(76,175,80,0.1)',
                             borderBottom: biased ? '2px solid rgba(244,67,54,0.6)' : '2px solid rgba(76,175,80,0.4)',
                           }}
                           title={`${s.label}: ${s.score}%`}>
                           {s.text}{' '}
                           <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal"
-                            style={{ background: '#0B1628', color: 'rgba(15,23,42,1)', border: '1px solid #1E3A5F' }}>
+                            style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #e2e8f0' }}>
                             {s.label}: {s.score}%
-                            {s.reasoning && <span className="block mt-1 italic font-normal" style={{ color: '#8BA3C1' }}>"{s.reasoning}"</span>}
+                            {s.reasoning && <span className="block mt-1 italic font-normal" style={{ color: '#64748b' }}>"{s.reasoning}"</span>}
                           </span>
                         </span>
                       );
