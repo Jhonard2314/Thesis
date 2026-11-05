@@ -313,7 +313,7 @@ export default function AnalyzePage() {
                         <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
                           style={{ 
                             background: biasData.bias_level === 'High' ? 'rgba(254,226,226,1)' : biasData.bias_level === 'Medium' ? 'rgba(254,243,199,1)' : 'rgba(220,252,231,1)', 
-                            border: px solid \ 
+                            border: `1px solid ${biasData.bias_level === 'High' ? 'rgba(239,68,68,0.3)' : biasData.bias_level === 'Medium' ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}` 
                           }}>
                           <span className="text-[11px] font-bold" style={{ color: biasData.bias_level === 'High' ? '#b91c1c' : biasData.bias_level === 'Medium' ? '#b45309' : '#047857' }}>{item.word}</span>
                           <span className="text-[9px] font-mono" style={{ color: biasData.bias_level === 'High' ? '#dc2626' : biasData.bias_level === 'Medium' ? '#d97706' : '#059669' }}>{item.score}</span>
