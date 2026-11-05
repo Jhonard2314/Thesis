@@ -13,10 +13,10 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
   const activeDetail  = modelInfo[activeVersion]?.detail || '';
   const activeColor   = modelInfo[activeVersion]?.color  || '#0FA89A';
 
-  const getBiasColor  = (l) => ({ Low: '#16a34a', Medium: '#FFEB3B', High: '#dc2626' }[l] ?? 'var(--text-muted)');
-  const getBiasBg     = (l) => ({ Low: 'rgba(22,163,74,0.08)', Medium: 'rgba(255,235,59,0.08)', High: 'rgba(220,38,38,0.08)' }[l] ?? 'var(--bg-card-alt)');
-  const getBiasBorder = (l) => ({ Low: 'rgba(22,163,74,0.3)', Medium: 'rgba(255,235,59,0.3)', High: 'rgba(220,38,38,0.3)' }[l] ?? 'var(--border)');
-  const getBiasBadge  = (l) => ({ Low: 'bg-green-100 text-green-700', Medium: 'bg-yellow-100 text-yellow-700', High: 'bg-red-100 text-red-700' }[l] ?? 'bg-slate-100 text-slate-600');
+  const getBiasColor  = (l) => ({ Low: '#10b981', Medium: '#f59e0b', High: '#ef4444' }[l] ?? 'var(--text-muted)');
+  const getBiasBg     = (l) => ({ Low: 'rgba(16,185,129,0.08)', Medium: 'rgba(245,158,11,0.08)', High: 'rgba(239,68,68,0.08)' }[l] ?? 'var(--bg-card-alt)');
+  const getBiasBorder = (l) => ({ Low: 'rgba(16,185,129,0.25)', Medium: 'rgba(245,158,11,0.25)', High: 'rgba(239,68,68,0.25)' }[l] ?? 'var(--border)');
+  const getBiasBadge  = (l) => ({ Low: 'bg-emerald-100 text-emerald-700', Medium: 'bg-amber-100 text-amber-700', High: 'bg-red-100 text-red-700' }[l] ?? 'bg-slate-100 text-slate-600');
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
