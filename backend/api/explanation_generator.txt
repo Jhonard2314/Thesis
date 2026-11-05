@@ -1,0 +1,54 @@
+﻿# Generate unique reason based on POS tag and context
+def generate_unique_bias_explanation(word_lower, pos, surrounding_words, sent):
+    """
+    Generate unique, linguistically-informed explanations for biased words.
+    Uses POS tags and surrounding word relationships to create specific analysis.
+    """
+    
+    # Get word position context
+    words_before = []
+    words_after = []
+    sent_words = sent.lower().split()
+    try:
+        word_idx = sent_words.index(word_lower)
+        words_before = [w for w in sent_words[max(0, word_idx-2):word_idx] if w not in service.STOP_WORDS][-2:]
+        words_after = [w for w in sent_words[word_idx+1:min(len(sent_words), word_idx+3)] if w not in service.STOP_WORDS][:2]
+    except ValueError:
+        pass
+    
+    # VERB analysis (VB, VBD, VBG, VBN, VBP, VBZ)
+    if pos.startswith('VB'):
+        if words_after:
+            return f"Action verb '{word_lower}' is used to describe '{words_after[0]}', framing the subject through an emotionally loaded action rather than neutral reporting."
+        elif words_before:
+            return f"The verb '{word_lower}' follows '{words_before[-1]}', creating a subjective characterization that signals opinion rather than factual observation."
+        else:
+            return f"Verb '{word_lower}' introduces subjective action framing, moving beyond neutral description into interpretive language."
+    
+    # ADJECTIVE analysis (JJ, JJR, JJS)
+    elif pos.startswith('JJ'):
+        if pos == 'JJR':  # Comparative
+            return f"Comparative adjective '{word_lower}' imposes a value judgment, positioning the subject on an evaluative scale rather than providing objective description."
+        elif pos == 'JJS':  # Superlative
+            return f"Superlative '{word_lower}' represents an extreme value claim, signaling opinion-based assessment rather than measured analysis."
+        elif words_after:
+            return f"Descriptive word '{word_lower}' modifies '{words_after[0]}' with subjective characterization, injecting evaluative language into what could be neutral reporting."
+        elif words_before:
+            return f"Qualifier '{word_lower}' appears after '{words_before[-1]}', adding emotional coloring that transforms factual statement into opinion."
+        else:
+            return f"Adjective '{word_lower}' signals subjective evaluation, introducing bias through descriptive framing."
+    
+    # ADVERB analysis (RB, RBR, RBS)
+    elif pos.startswith('RB'):
+        if pos == 'RBR':  # Comparative adverb
+            return f"Comparative adverb '{word_lower}' intensifies the statement, shifting from objective reporting to subjective emphasis."
+        elif words_before:
+            return f"Adverb '{word_lower}' modifies '{words_before[-1]}', adding subjective intensity that signals opinion-based framing rather than neutral tone."
+        elif words_after:
+            return f"Modifier '{word_lower}' amplifies '{words_after[0]}', introducing emotional emphasis that moves beyond factual reporting."
+        else:
+            return f"Adverb '{word_lower}' adds subjective emphasis, signaling opinion through intensification rather than neutral description."
+    
+    # Generic fallback (shouldn't reach here with proper POS filtering)
+    return f"Word '{word_lower}' appears in biased context with subjective language patterns."
+
