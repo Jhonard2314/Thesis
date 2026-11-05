@@ -683,7 +683,7 @@ def analyze(request: AnalysisRequest):
                 "summary": summary,
                 "model_version": model_version,
                 "model_label": "BERT-BABE v1 (83% acc, 3-epoch)" if model_version == "v1" else "BERT-BABE v2 (96% acc, 10-epoch)",
-                "explanation": f"Analysis completed across {len(analysis_sentences)} sentences. Overall bias score represents the average linguistic bias detected.",
+                "explanation": f"Analyzed {biased_count} biased and {factual_count} factual sentences out of {len(analysis_sentences)} total. Score represents average linguistic bias across all sentences.",
                 "interpretation": interpretation,
                 "bias_indicators": bias_indicators,
                 "top_words": top_words,

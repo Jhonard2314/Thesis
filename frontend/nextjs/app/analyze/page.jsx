@@ -6,9 +6,9 @@ import Link from 'next/link';
 const isUrl = (str) => {
   try { new URL(str); return str.startsWith('http'); } catch { return false; }
 };
-const getBiasColor = (l) => ({ Low: '#4CAF50', Medium: '#FFC107', High: '#F44336' }[l] ?? '#8BA3C1');
-const getBiasBg    = (l) => ({ Low: '#0d2b0d', Medium: '#2b2200', High: '#2b0d0d' }[l] ?? '#0F1E38');
-const getBiasBadge = (l) => ({ Low: 'bg-green-900 text-green-300', Medium: 'bg-yellow-900 text-yellow-300', High: 'bg-red-900 text-red-300' }[l] ?? 'bg-slate-700 text-slate-300');
+const getBiasColor = (l) => ({ Low: '#10b981', Medium: '#f59e0b', High: '#ef4444' }[l] ?? '#8BA3C1');
+const getBiasBg    = (l) => ({ Low: 'rgba(16, 185, 129, 0.08)', Medium: 'rgba(245, 158, 11, 0.08)', High: 'rgba(239, 68, 68, 0.08)' }[l] ?? '#0F1E38');
+const getBiasBadge = (l) => ({ Low: 'bg-green-100 text-green-700', Medium: 'bg-amber-100 text-amber-700', High: 'bg-red-100 text-red-700' }[l] ?? 'bg-slate-100 text-slate-600');
 
 export default function AnalyzePage() {
   const [input, setInput]             = useState('');
