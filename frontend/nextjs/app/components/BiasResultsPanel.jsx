@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 
-// Mirrors BiasModal's left+right panel design exactly, using the same CSS variables
+// Exact copy of BiasModal's left + right panel rendering.
+// Used by the /analyze page so it looks identical to the modal.
+
 const getBiasColor  = (l) => ({ Low: '#10b981', Medium: '#f59e0b', High: '#ef4444' }[l] ?? 'var(--text-muted)');
 const getBiasBg     = (l) => ({ Low: 'rgba(16,185,129,0.08)', Medium: 'rgba(245,158,11,0.08)', High: 'rgba(239,68,68,0.08)' }[l] ?? 'var(--bg-card-alt)');
 const getBiasBorder = (l) => ({ Low: 'rgba(16,185,129,0.25)', Medium: 'rgba(245,158,11,0.25)', High: 'rgba(239,68,68,0.25)' }[l] ?? 'var(--border)');
@@ -16,14 +18,18 @@ export default function BiasResultsPanel({
   articleUrl = null,
   showArticleText = true,
 }) {
-  const [hoveredContext, setHoveredContext] = useState(null);
+  const [hoveredWord, setHoveredWord] = useState(null);
+
+  // While bias is still loading but we already have summary
+  const showLoadingScore = isLoading && !biasData;
 
   return (
-    <div className="flex gap-6 mt-2">
+    <div className="flex gap-0 mt-2 rounded-2xl overflow-hidden"
+      style={{ border: '1px solid var(--border)', minHeight: 500 }}>
 
-      {/* ── Left panel ── matches BiasModal left panel exactly */}
-      <div className="w-72 shrink-0 overflow-y-auto space-y-4"
-        style={{ color: 'var(--text-primary)' }}>
+      {/* ── LEFT PANEL — exact clone of BiasModal left panel ── */}
+      <div className="w-72 shrink-0 overflow-y-auto p-5 space-y-4"
+        style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
 
         {/* Summary */}
         <div>
@@ -39,13 +45,13 @@ export default function BiasResultsPanel({
             <div className="rounded-lg p-3"
               style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)' }}>
               <p className="text-xs italic"
-                style={{ color: 'var(--text-subtle)' }}>Summary unavailable.</p>
+                style={{ color: 'var(--text-subtle)' }}>Summary unavailable. Analysis can still proceed.</p>
             </div>
           )}
         </div>
 
-        {/* Loading state */}
-        {isLoading && !biasData && (
+        {/* Loading spinner */}
+        {showLoadingScore && (
           <div className="flex flex-col items-center py-8 rounded-xl"
             style={{ background: 'var(--bg-card)' }}>
             <div className="w-9 h-9 rounded-full border-2 border-t-transparent animate-spin mb-3"
@@ -57,22 +63,23 @@ export default function BiasResultsPanel({
           </div>
         )}
 
-        {/* Score card */}
+        {/* Results */}
         {biasData?.bias_level && (
           <div className="space-y-4">
+
+            {/* Score card */}
             <div className="rounded-xl p-4 text-center"
               style={{ background: getBiasBg(biasData.bias_level), border: `1px solid ${getBiasBorder(biasData.bias_level)}` }}>
               <div className="text-4xl font-black mb-1"
                 style={{ color: getBiasColor(biasData.bias_level) }}>
                 {biasData.bias_score}%
               </div>
-              <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-2 ${getBiasBadge(biasData.bias_level)}`}>
+              <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${getBiasBadge(biasData.bias_level)}`}>
                 Bias Score
               </span>
-              <p className="text-xs leading-relaxed"
+              <p className="text-xs leading-relaxed mt-2"
                 style={{ color: 'var(--text-muted)' }}>{biasData.explanation}</p>
 
-              {/* Interpretation */}
               {biasData.interpretation && (
                 <div className="rounded-lg p-3 mt-3 text-left"
                   style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
@@ -83,7 +90,6 @@ export default function BiasResultsPanel({
                 </div>
               )}
 
-              {/* Bias Indicators */}
               {biasData.bias_indicators?.length > 0 && (
                 <div className="text-left mt-3">
                   <h5 className="text-[9px] font-bold uppercase tracking-widest mb-2"
@@ -102,7 +108,7 @@ export default function BiasResultsPanel({
               )}
             </div>
 
-            {/* Key Biased Markers */}
+            {/* Key Biased Markers — exact BiasModal rendering */}
             {biasData.top_words?.length > 0 && (
               <div>
                 <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3"
@@ -113,27 +119,27 @@ export default function BiasResultsPanel({
                   {biasData.top_words.map((item, idx) => {
                     const isLow = biasData.bias_level === 'Low';
                     const isMed = biasData.bias_level === 'Medium';
-                    const bg   = isLow ? 'rgba(34,197,94,0.06)'  : isMed ? 'rgba(245,158,11,0.06)'  : 'rgba(220,38,38,0.06)';
-                    const bd   = isLow ? 'rgba(34,197,94,0.2)'   : isMed ? 'rgba(245,158,11,0.25)'  : 'rgba(220,38,38,0.2)';
-                    const tc   = isLow ? 'rgb(22,163,74)'        : isMed ? 'rgb(217,119,6)'          : 'rgb(220,38,38)';
-                    const hbg  = isLow ? 'rgba(34,197,94,0.05)'  : isMed ? 'rgba(245,158,11,0.05)'  : 'rgba(220,38,38,0.05)';
-                    const hbd  = isLow ? 'rgba(34,197,94,0.4)'   : isMed ? 'rgba(245,158,11,0.4)'   : 'rgba(220,38,38,0.4)';
-                    const sbg  = isLow ? 'rgba(34,197,94,0.1)'   : isMed ? 'rgba(245,158,11,0.15)'  : 'rgba(220,38,38,0.1)';
+                    const bgColor       = isLow ? 'rgba(34,197,94,0.06)'  : isMed ? 'rgba(245,158,11,0.06)'  : 'rgba(220,38,38,0.06)';
+                    const borderColor   = isLow ? 'rgba(34,197,94,0.2)'   : isMed ? 'rgba(245,158,11,0.25)'  : 'rgba(220,38,38,0.2)';
+                    const textColor     = isLow ? 'rgb(22,163,74)'        : isMed ? 'rgb(217,119,6)'          : 'rgb(220,38,38)';
+                    const highlightBg   = isLow ? 'rgba(34,197,94,0.05)'  : isMed ? 'rgba(245,158,11,0.05)'  : 'rgba(220,38,38,0.05)';
+                    const highlightBd   = isLow ? 'rgba(34,197,94,0.4)'   : isMed ? 'rgba(245,158,11,0.4)'   : 'rgba(220,38,38,0.4)';
+                    const scoreBg       = isLow ? 'rgba(34,197,94,0.1)'   : isMed ? 'rgba(245,158,11,0.15)'  : 'rgba(220,38,38,0.1)';
 
                     return (
                       <div key={idx}
                         className="rounded-lg p-3 transition-all cursor-pointer"
-                        style={{ background: bg, border: `1px solid ${bd}` }}
-                        onMouseEnter={() => setHoveredContext(item.context)}
-                        onMouseLeave={() => setHoveredContext(null)}>
+                        style={{ background: bgColor, border: `1px solid ${borderColor}` }}
+                        onMouseEnter={() => setHoveredWord(item.context || item.word)}
+                        onMouseLeave={() => setHoveredWord(null)}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-[13px] font-bold" style={{ color: tc }}>{item.word}</span>
+                          <span className="text-[13px] font-bold" style={{ color: textColor }}>{item.word}</span>
                           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                            style={{ color: tc, background: sbg }}>{item.score}</span>
+                            style={{ color: textColor, background: scoreBg }}>{item.score}</span>
                         </div>
                         {item.context && (
                           <div className="mb-2 p-2 rounded"
-                            style={{ background: hbg, borderLeft: `2px solid ${hbd}` }}>
+                            style={{ background: highlightBg, borderLeft: `2px solid ${highlightBd}` }}>
                             <p className="text-[9px] uppercase tracking-wider font-bold mb-1"
                               style={{ color: 'var(--text-muted)' }}>Found in sentence:</p>
                             <p className="text-[10px] leading-relaxed"
@@ -187,7 +193,7 @@ export default function BiasResultsPanel({
             {/* Visit source */}
             {articleUrl && (
               <a href={articleUrl} target="_blank" rel="noopener noreferrer"
-                className="block w-full text-center text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors"
+                className="block w-full text-center text-xs font-black uppercase tracking-widest py-2.5 rounded-xl transition-colors"
                 style={{ background: 'var(--accent)', color: '#fff' }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}>
@@ -198,61 +204,65 @@ export default function BiasResultsPanel({
         )}
       </div>
 
-      {/* ── Right panel ── matches BiasModal right panel exactly */}
+      {/* ── RIGHT PANEL — exact clone of BiasModal right panel ── */}
       {showArticleText && (
-        <div className="flex-1 overflow-y-auto p-6 rounded-xl min-h-[400px]"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="flex-1 overflow-y-auto p-6"
+          style={{ background: 'var(--bg-card)' }}>
           <h4 className="text-[9px] font-bold uppercase tracking-widest mb-5"
             style={{ color: 'var(--text-muted)' }}>Full Article Context</h4>
+          <div className="prose prose-sm max-w-none">
+            {!biasData?.sentence_breakdown ? (
+              <div className="space-y-3">
+                {(summaryData?.full_content || '').split('\n').filter(Boolean).map((para, i) => (
+                  <p key={i} className="text-sm leading-relaxed"
+                    style={{ color: 'var(--text-muted)' }}>{para}</p>
+                ))}
+                {isLoading && (
+                  <div className="mt-6 rounded-xl p-6 text-center"
+                    style={{ border: '2px dashed var(--border)' }}>
+                    <p className="text-sm italic"
+                      style={{ color: 'var(--text-subtle)' }}>
+                      Bias highlighting will appear here after analysis…
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                {biasData.sentence_breakdown.map((s, idx) => {
+                  const biased = s.label === 'Biased';
+                  // highlight sentence when its keyword is hovered on the left
+                  const isHighlighted = hoveredWord && s.text &&
+                    s.text.toLowerCase().includes(hoveredWord.toLowerCase().trim().slice(0, 20));
 
-          {!biasData?.sentence_breakdown ? (
-            <div className="space-y-3">
-              {(summaryData?.full_content || '').split('\n').filter(Boolean).map((para, i) => (
-                <p key={i} className="text-sm leading-relaxed"
-                  style={{ color: 'var(--text-muted)' }}>{para}</p>
-              ))}
-              {isLoading && (
-                <div className="mt-6 rounded-xl p-6 text-center"
-                  style={{ border: '2px dashed var(--border)' }}>
-                  <p className="text-sm italic"
-                    style={{ color: 'var(--text-subtle)' }}>
-                    Bias highlighting will appear here after analysis…
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              {biasData.sentence_breakdown.map((s, idx) => {
-                const biased = s.label === 'Biased';
-                const highlighted = hoveredContext && s.text && hoveredContext.includes(s.text.trim());
-                return (
-                  <span key={idx}
-                    className="inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-all duration-150"
-                    style={{
-                      color: 'var(--text-primary)',
-                      background: highlighted
-                        ? 'rgba(255,193,7,0.3)'
-                        : biased ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.08)',
-                      borderBottom: highlighted
-                        ? '3px solid rgba(255,193,7,1)'
-                        : biased ? '2px solid rgba(220,38,38,0.5)' : '2px solid rgba(22,163,74,0.4)',
-                    }}
-                    title={`${s.label}: ${s.score}%`}>
-                    {s.text}{' '}
-                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal"
-                      style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                      {s.label}: {s.score}%
-                      {s.reasoning && (
-                        <span className="block mt-1 italic font-normal"
-                          style={{ color: 'var(--text-muted)' }}>"{s.reasoning}"</span>
-                      )}
+                  return (
+                    <span key={idx}
+                      className="inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors"
+                      style={{
+                        color: 'var(--text-primary)',
+                        background: isHighlighted
+                          ? 'rgba(255,193,7,0.25)'
+                          : biased ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.08)',
+                        borderBottom: isHighlighted
+                          ? '2px solid rgba(255,193,7,0.9)'
+                          : biased ? '2px solid rgba(220,38,38,0.5)' : '2px solid rgba(22,163,74,0.4)',
+                      }}
+                      title={`${s.label}: ${s.score}%`}>
+                      {s.text}{' '}
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal"
+                        style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                        {s.label}: {s.score}%
+                        {s.reasoning && (
+                          <span className="block mt-1 italic font-normal"
+                            style={{ color: 'var(--text-muted)' }}>"{s.reasoning}"</span>
+                        )}
+                      </span>
                     </span>
-                  </span>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
