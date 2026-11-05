@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from 'next/link';
+import BiasResultsPanel from '../components/BiasResultsPanel';
 
 const isUrl = (str) => {
   try { new URL(str); return str.startsWith('http'); } catch { return false; }
@@ -264,114 +265,13 @@ export default function AnalyzePage() {
 
           {/* Results */}
           {summaryData && (
-            <div className="flex gap-6 mt-2">
-              {/* Left panel */}
-              <div className="w-72 shrink-0 space-y-4">
-                <div className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,1)', border: '1px solid rgba(226,232,240,1)' }}>
-                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(71,85,105,1)' }}>Executive Summary</h4>
-                  {summaryData.summary
-                    ? <p className="text-sm leading-relaxed italic" style={{ color: 'rgba(51,65,85,1)' }}>"{summaryData.summary}"</p>
-                    : <p className="text-sm italic" style={{ color: 'rgba(148,163,184,1)' }}>Summary unavailable.</p>}
-                </div>
-
-                {(stage === 'analyzing' || stage === 'done') && (
-                  <div className="rounded-xl p-5 text-center" style={{ background: '#ffffff', border: `1px solid ${biasData ? getBiasColor(biasData.bias_level) + '30' : '#e2e8f0'}` }}>
-                    {biasData ? (
-                      <>
-                        <div className="text-5xl font-black mb-1" style={{ color: getBiasColor(biasData.bias_level) }}>{biasData.bias_score}%</div>
-                        <span className={`inline-block px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-3 ${getBiasBadge(biasData.bias_level)}`}>Bias Score</span>
-                        <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>{biasData.explanation}</p>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center py-4">
-                        <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"/>
-                        <p className="text-[10px] font-medium uppercase tracking-widest animate-pulse" style={{ color: '#0EA5E9' }}>Analyzing…</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,1)', border: '1px solid rgba(226,232,240,1)' }}>
-                  <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(71,85,105,1)' }}>Bias Grading Scale</h4>
-                  <div className="w-full h-2 rounded-full overflow-hidden flex mb-3">
-                    <div className="bg-green-500 h-full w-1/2"/>
-                    <div className="bg-yellow-400 h-full w-[20%]"/>
-                    <div className="bg-red-500 h-full w-[30%]"/>
-                  </div>
-                  <div className="space-y-1.5 text-[10px]">
-                    <div className="flex justify-between"><span className="text-green-400 font-bold">0% – 50%</span><span className="italic" style={{ color: 'rgba(71,85,105,1)' }}>Likely Factual</span></div>
-                    <div className="flex justify-between"><span className="text-yellow-400 font-bold">51% – 70%</span><span className="italic" style={{ color: 'rgba(71,85,105,1)' }}>Likely Biased</span></div>
-                    <div className="flex justify-between"><span className="text-red-400 font-bold">71% – 100%</span><span className="italic" style={{ color: 'rgba(71,85,105,1)' }}>Strongly Biased</span></div>
-                  </div>
-                </div>
-
-                {biasData?.top_words?.length > 0 && (
-                  <div className="rounded-xl p-4" style={{ background: 'rgba(248,250,252,1)', border: '1px solid rgba(226,232,240,1)' }}>
-                    <h4 className="text-[9px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(71,85,105,1)' }}>Key Biased Markers</h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {biasData.top_words.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
-                          style={{ 
-                            background: biasData.bias_level === 'High' ? 'rgba(254,226,226,1)' : biasData.bias_level === 'Medium' ? 'rgba(254,243,199,1)' : 'rgba(220,252,231,1)', 
-                            border: `1px solid ${biasData.bias_level === 'High' ? 'rgba(239,68,68,0.3)' : biasData.bias_level === 'Medium' ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}` 
-                          }}>
-                          <span className="text-[11px] font-bold" style={{ color: biasData.bias_level === 'High' ? '#b91c1c' : biasData.bias_level === 'Medium' ? '#b45309' : '#047857' }}>{item.word}</span>
-                          <span className="text-[9px] font-mono" style={{ color: biasData.bias_level === 'High' ? '#dc2626' : biasData.bias_level === 'Medium' ? '#d97706' : '#059669' }}>{item.score}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(savedUrl || isUrl(input.trim())) && (
-                  <a href={savedUrl || input.trim()} target="_blank" rel="noopener noreferrer"
-                    className="block w-full text-center text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors"
-                    style={{ background: '#0EA5E9', color: '#ffffff' }}>
-                    Visit Original Source
-                  </a>
-                )}
-              </div>
-
-              {/* Right panel */}
-              <div className="flex-1 rounded-xl p-6 min-h-[400px]" style={{ background: 'rgba(255,255,255,1)', border: '1px solid rgba(226,232,240,1)' }}>
-                <h4 className="text-[9px] font-bold uppercase tracking-widest mb-5" style={{ color: 'rgba(71,85,105,1)' }}>Full Article Context</h4>
-                {!biasData?.sentence_breakdown ? (
-                  <div className="space-y-3">
-                    {(summaryData?.full_content || '').split('\n').filter(Boolean).map((para, i) => (
-                      <p key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(71,85,105,1)' }}>{para}</p>
-                    ))}
-                    {stage === 'analyzing' && (
-                      <div className="mt-6 rounded-xl p-6 text-center" style={{ border: '2px dashed #e2e8f0' }}>
-                        <p className="text-sm italic" style={{ color: '#94a3b8' }}>Bias highlighting will appear here after analysis…</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    {biasData.sentence_breakdown.map((s, idx) => {
-                      const biased = s.label === 'Biased';
-                      return (
-                        <span key={idx}
-                          className="inline p-0.5 rounded-sm leading-[1.9] text-sm group relative cursor-help transition-colors"
-                          style={{
-                            color: '#0f172a',
-                            background: biased ? 'rgba(244,67,54,0.15)' : 'rgba(76,175,80,0.1)',
-                            borderBottom: biased ? '2px solid rgba(244,67,54,0.6)' : '2px solid rgba(76,175,80,0.4)',
-                          }}
-                          title={`${s.label}: ${s.score}%`}>
-                          {s.text}{' '}
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48 text-center font-medium leading-normal whitespace-normal"
-                            style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #e2e8f0' }}>
-                            {s.label}: {s.score}%
-                            {s.reasoning && <span className="block mt-1 italic font-normal" style={{ color: '#64748b' }}>"{s.reasoning}"</span>}
-                          </span>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+            <BiasResultsPanel 
+              biasData={biasData}
+              summaryData={summaryData}
+              isLoading={stage === 'analyzing'}
+              articleUrl={savedUrl || (isUrl(input.trim()) ? input.trim() : null)}
+              showArticleText={true}
+            />
           )}
         </div>
       )}
