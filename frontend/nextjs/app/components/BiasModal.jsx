@@ -28,18 +28,8 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
         <div className="px-6 py-4 flex justify-between items-center shrink-0"
           style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
           <div>
-            <h2 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
               Media Bias Analysis
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: activeColor, color: '#fff' }}>
-                {activeLabel}
-              </span>
-              {activeDetail && (
-                <span className="text-[9px] font-normal px-2 py-0.5 rounded-full"
-                  style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}35` }}>
-                  {activeDetail}
-                </span>
-              )}
             </h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Powered by BERT-BABE Linguistic Analysis</p>
           </div>
@@ -106,9 +96,7 @@ export default function BiasModal({ isOpen, onClose, article, biasData, isLoadin
                   <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${getBiasBadge(biasData.bias_level)}`}>
                     Bias Score
                   </span>
-                  <p className="text-[9px] font-semibold mb-2" style={{ color: activeColor }}>
-                    {activeLabel}{activeDetail ? ` · ${activeDetail}` : ''}
-                  </p>
+
                   <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{biasData.explanation}</p>
                   
                   {/* Interpretation */}

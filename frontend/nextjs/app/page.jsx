@@ -438,9 +438,7 @@ export default function Home() {
                       <>
                         <div className="text-5xl font-black mb-1" style={{ color: getBiasColor(analyzeBias.bias_level) }}>{analyzeBias.bias_score}%</div>
                         <span className={`inline-block px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-3 ${getBiasBadge(analyzeBias.bias_level)}`}>Bias Score</span>
-                        <p className="text-[9px] mb-1 font-semibold" style={{ color: '#0FA89A' }}>
-                          BERT-BABE v2 · 96% acc · 10-epoch
-                        </p>
+
                         <p className="text-xs leading-relaxed mb-3" style={{ color: '#B8C5D6' }}>{analyzeBias.explanation}</p>
                         
                         {/* Interpretation */}
