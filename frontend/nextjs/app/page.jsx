@@ -149,34 +149,31 @@ export default function Home() {
 
   const analyzeRunFull = async (content, url = null) => {
     setAnalyzeStage('analyzing'); setAnalyzeSummary(null); setAnalyzeBias(null);
-    // Open modal immediately with loading state
     const article = buildAnalyzeArticle(url, content);
     setSelectedArticle(article);
     setBiasData(null); setBiasLoading(true); setBiasError(null);
     setLoadingStage('analyzing');
     setIsModalOpen(true);
     try {
-      const [r1, r2] = await Promise.all([
-        fetch('/api/bias', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, action: 'get_summary', ...(url ? { url } : {}) }),
-        }),
-        fetch('/api/bias', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, action: 'analyze_bias', model_version: modelVersion, ...(url ? { url } : {}) }),
-        }),
-      ]);
-      const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+      // Sequential: summary first, then bias (so modal shows summary while bias loads)
+      const r1 = await fetch('/api/bias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, action: 'get_summary', ...(url ? { url } : {}) }),
+      });
+      const d1 = await r1.json();
       if (d1.error) { setBiasError(d1.error); setBiasLoading(false); setAnalyzeStage('error'); return; }
+      // Show summary immediately in modal
+      setBiasData(prev => ({ ...prev, summary: d1.summary, full_content: d1.full_content }));
+
+      const r2 = await fetch('/api/bias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: d1.full_content || content, action: 'analyze_bias', model_version: modelVersion, summary: d1.summary, ...(url ? { url } : {}) }),
+      });
+      const d2 = await r2.json();
       if (d2.error) { setBiasError(d2.error); setBiasLoading(false); setAnalyzeStage('error'); return; }
       setBiasData({ ...d2, summary: d1.summary, full_content: d1.full_content });
-      setBiasLoading(false);
-      setAnalyzeStage('done');
-    } catch (e) {
-      setBiasError(e.message || 'Network error');
-      setBiasLoading(false);
-      setAnalyzeStage('error');
-    }
+      setBiasLoading(false); setAnalyzeStage('done');
+    } catch (e) { setBiasError('Connection error. Please try again.'); setBiasLoading(false); setAnalyzeStage('error'); }
   };
 
   const analyzeSubmit = async () => {
@@ -212,11 +209,7 @@ export default function Home() {
       setBiasData({ ...d2, summary: d.summary, full_content: d.full_content });
       setBiasLoading(false);
       setAnalyzeStage('done');
-    } catch (e) {
-      setBiasError(e.message || 'Network error');
-      setBiasLoading(false);
-      setAnalyzeStage('error');
-    }
+    } catch (e) { setBiasError('Connection error. Please try again.'); setBiasLoading(false); setAnalyzeStage('error'); }
   };
 
   const analyzeSubmitPasted = async () => {
