@@ -116,6 +116,17 @@ export default function AnalyzePage() {
     await runAnalysis(t, savedUrl || null);
   };
 
+  // Clean pasted text — normalize whitespace and line breaks for readability
+  const cleanPastedText = (raw) => {
+    return raw
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/^\s+|\s+$/gm, '')
+      .trim();
+  };
+
   const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); analyze(); } };
   const loading   = stage === 'extracting' || stage === 'analyzing';
 
@@ -255,7 +266,7 @@ export default function AnalyzePage() {
 
             <textarea
               ref={pasteRef} value={pastedText}
-              onChange={(e) => setPastedText(e.target.value)}
+              onChange={(e) => setPastedText(cleanPastedText(e.target.value))}
               onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submitPasted(); }}
               rows={8} placeholder="Paste the full article text here…"
               className="w-full rounded-xl text-sm leading-relaxed p-4 outline-none resize-none"

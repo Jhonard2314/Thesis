@@ -218,6 +218,17 @@ export default function Home() {
     await analyzeRunFull(t, analyzeSavedUrl || null);
   };
 
+  // Clean pasted text — normalize whitespace and line breaks for readability
+  const cleanPastedText = (raw) => {
+    return raw
+      .replace(/\r\n/g, '\n')           // normalize Windows line endings
+      .replace(/\r/g, '\n')             // normalize old Mac line endings
+      .replace(/[ \t]+/g, ' ')          // collapse multiple spaces/tabs to single space
+      .replace(/\n{3,}/g, '\n\n')       // collapse 3+ blank lines to max 2
+      .replace(/^\s+|\s+$/gm, '')       // trim each line
+      .trim();
+  };
+
   const analyzeLoading = analyzeStage === 'extracting' || analyzeStage === 'analyzing';
 
   /* ── Render ───────────────────────────────────────────────────────────── */
@@ -374,7 +385,7 @@ export default function Home() {
               <textarea
                 ref={analyzePasteRef}
                 value={analyzePastedText}
-                onChange={(e) => setAnalyzePastedText(e.target.value)}
+                onChange={(e) => setAnalyzePastedText(cleanPastedText(e.target.value))}
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) analyzeSubmitPasted(); }}
                 rows={7}
                 placeholder="Paste the full article text here…"
