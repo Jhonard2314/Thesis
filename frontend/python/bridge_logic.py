@@ -90,9 +90,9 @@ def main():
             # 3. Get Summary (NEW: added to bias analysis for local consistency)
             summary = service.summarize_content(content[:3000])
             
-            # 4. Sentence-by-sentence analysis
+            # 4. Sentence-by-sentence analysis — use ALL sentences, chunked batching handles OOM
             sentences = service.split_into_sentences(content)
-            analysis_sentences = sentences[:25]
+            analysis_sentences = sentences
             batch_results = service.rate_bias_batch(analysis_sentences)
             
             sentence_results = []

@@ -539,8 +539,9 @@ class NewsService:
         # Determine overall label based on average
         label = "Biased" if avg_score > 0.5 else "Factual"
         
-        # Get top biased words for overall analysis (using a combined sample for efficiency)
-        sample_text = " ".join(analysis_batch[:5])
+        # Get top biased words — use all biased sentences for better keyword coverage
+        biased_batch = [s for s, r in zip(analysis_batch, results) if r.get("label") == "Biased"]
+        sample_text = " ".join(biased_batch) if biased_batch else " ".join(analysis_batch)
         top_words = self.get_top_biased_words_gradient(sample_text, top_k=8)
         
         reasoning = f"Overall analysis based on {len(results)} sentences. Average bias score: {avg_score:.2f}."
