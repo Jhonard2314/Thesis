@@ -570,7 +570,11 @@ class NewsService:
             "sponsored", "click here", "follow us on", "read more", 
             "newsletter", "privacy policy", "terms of service", "cookies",
             "related stories", "recommended for you", "check out our",
-            "all rights reserved", "photo by", "image credit", "copyright"
+            "all rights reserved", "photo by", "image credit", "copyright",
+            "skip to content", "register sign", "sign in home",
+            "share save", "add as preferred", "watch live", "listen live",
+            "breaking news", "audio video", "(credit:", "(photo:",
+            "getty images", "afp via", "view image", "fullscreen",
         ]
         
         filtered_sentences = []
@@ -1064,38 +1068,99 @@ class NewsService:
             return None
 
     def _clean_article_text(self, text):
-        """Remove timestamps, dates, and metadata from article text."""
+        """Remove navigation, boilerplate, and metadata from article text."""
         if not text:
             return text
             
         import re
-        
-        # Remove common timestamp patterns
-        # "3h ago", "11:16 EDT", "Updated at 13:24 EDT", "39m ago", "13.19 EDT", etc.
+
+        # ── Step 1: Strip leading navigation/boilerplate lines ──────────────
+        # Sites like BBC, Guardian prepend nav menus before article body.
+        # Find the first line that looks like actual article content.
+        lines = text.split('\n')
+        cleaned_lines = []
+        article_started = False
+
+        # Boilerplate phrases that appear BEFORE the article body
+        nav_phrases = [
+            'skip to content', 'sign in', 'register', 'log in', 'subscribe',
+            'home news sport', 'home news business', 'breaking news',
+            'share save', 'add as preferred', 'watch live', 'audio video',
+            'share on facebook', 'share on twitter', 'share on linkedin',
+            'copy link', 'print this page', 'save article',
+        ]
+
+        for line in lines:
+            line_stripped = line.strip()
+            line_lower = line_stripped.lower()
+
+            if not article_started:
+                # Skip lines that are pure nav/boilerplate
+                if any(phrase in line_lower for phrase in nav_phrases):
+                    continue
+                # Skip lines that are all-caps nav menus (e.g. "HOME NEWS SPORT BUSINESS")
+                words = line_stripped.split()
+                if len(words) >= 4 and sum(1 for w in words if w.isupper() and len(w) > 1) >= len(words) * 0.6:
+                    continue
+                # Start collecting once we hit a real sentence (ends with punctuation or is long enough)
+                if len(line_stripped) > 60 or (line_stripped and line_stripped[-1] in '.!?":'):
+                    article_started = True
+            
+            if article_started:
+                cleaned_lines.append(line)
+
+        text = '\n'.join(cleaned_lines) if cleaned_lines else text
+
+        # ── Step 2: Remove inline junk patterns ─────────────────────────────
         patterns_to_remove = [
-            r'\b\d{1,2}h\s+ago\b',  # "3h ago"
-            r'\b\d{1,2}m\s+ago\b',  # "39m ago"  
-            r'\b\d{1,2}:\d{1,2}\s+[A-Z]{2,4}\b',  # "11:16 EDT", "13:24 BST"
-            r'\b\d{1,2}\.\d{1,2}\s+[A-Z]{2,4}\b',  # "13.19 EDT"
-            r'\bUpdated\s+at\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\b',  # "Updated at 13:24 EDT"
-            r'\bUpdated\s+at\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\s+\d{1,2}[hm]\s+ago\b',  # "Updated at 13:24 EDT 39m ago"
-            r'\bPublished\s+at\s+\d{1,2}[:.]\d{1,2}\b',  # "Published at 11:16"
-            r'\bFrom\s+\d{1,2}h\s+ago\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\b',  # "From 3h ago 11:16 EDT"
-            r'\b\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\s+\d{1,2}[hm]\s+ago\b',  # "13.24 EDT 34m ago"
-            r'\bShare\s+Updated\s+at\s+[^\s]+\s+[^\s]+',  # "Share Updated at ..."
-            r'\bView image in fullscreen\b',  # Image captions
-            r'\bPhotograph:\s+[^\.]+\.',  # "Photograph: John Doe/Reuters"
-            r'\bImage source,\s+[^\n]+',  # BBC image sources
-            r'\bImage caption,\s+[^\n]+',  # BBC image captions
+            # Navigation/UI fragments at start of scraped text
+            r'^(Skip to content|Register|Sign [Ii]n|Log [Ii]n|Home\s+(News|Sport|Business)[\w\s]+)\s*',
+            # Share/social buttons text
+            r'\b(Share|Save|Add as preferred on \w+|Copy link|Print)\b[\s\|]*',
+            # Image credits
+            r'\(Credit:[^)]+\)',
+            r'\(Photo:[^)]+\)',
+            r'Getty Images?[^\n.]*',
+            r'AFP[^\n.]*via Getty',
+            r'Reuters[^\n.]*',
+            # BBC/Guardian specific
+            r'Image source,[^\n]+',
+            r'Image caption,[^\n]+',
+            r'Photograph:[^\n.]+\.',
+            # Timestamps
+            r'\b\d{1,2}h\s+ago\b',
+            r'\b\d{1,2}m\s+ago\b',
+            r'\b\d{1,2}:\d{1,2}\s+[A-Z]{2,4}\b',
+            r'\b\d{1,2}\.\d{1,2}\s+[A-Z]{2,4}\b',
+            r'\bUpdated\s+at\s+\d{1,2}[:.]\d{1,2}\s+[A-Z]{2,4}\b',
+            r'\bPublished\s+at\s+\d{1,2}[:.]\d{1,2}\b',
+            r'\bView image in fullscreen\b',
+            # Watch/listen prompts
+            r'\bWatch:\s+[^\n]+',
+            r'\bListen:\s+[^\n]+',
         ]
         
         cleaned = text
         for pattern in patterns_to_remove:
-            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
-        
-        # Clean up multiple spaces and newlines left by removals
-        cleaned = re.sub(r'\s+', ' ', cleaned)
-        cleaned = re.sub(r'\n\s*\n+', '\n\n', cleaned)
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+
+        # ── Step 3: Filter sentence fragments from split_into_sentences ─────
+        # Remove lines that are clearly nav/meta fragments
+        junk_line_phrases = [
+            'skip to content', 'register sign in', 'sign in home',
+            'share save add', 'watch live', 'breaking news',
+            'audio video live', 'july 2026', 'june 2026', 'january 2026',
+        ]
+        result_lines = []
+        for line in cleaned.split('\n'):
+            if any(j in line.lower() for j in junk_line_phrases):
+                continue
+            result_lines.append(line)
+        cleaned = '\n'.join(result_lines)
+
+        # ── Step 4: Normalize whitespace ────────────────────────────────────
+        cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
         
         return cleaned.strip()
 
