@@ -489,20 +489,24 @@ class NewsService:
 
         if model and tokenizer:
             try:
-                inputs = tokenizer(sentences, return_tensors="pt", truncation=True, padding=True, max_length=256)
-                with torch.no_grad():
-                    outputs = model(**inputs)
-                    probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                    results = []
-                    for i, prob in enumerate(probs):
-                        bias_score = prob[1].item()
-                        label = "Biased" if bias_score > 0.5 else "Factual"
-                        results.append({
-                            "label": label,
-                            "score": bias_score,
-                            "reasoning": self.get_bias_reasoning(sentences[i], label, bias_score)
-                        })
-                    return results
+                # Process in chunks of 32 to avoid OOM on large articles
+                CHUNK_SIZE = 32
+                all_results = []
+                for chunk_start in range(0, len(sentences), CHUNK_SIZE):
+                    chunk = sentences[chunk_start:chunk_start + CHUNK_SIZE]
+                    inputs = tokenizer(chunk, return_tensors="pt", truncation=True, padding=True, max_length=256)
+                    with torch.no_grad():
+                        outputs = model(**inputs)
+                        probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                        for i, prob in enumerate(probs):
+                            bias_score = prob[1].item()
+                            label = "Biased" if bias_score > 0.5 else "Factual"
+                            all_results.append({
+                                "label": label,
+                                "score": bias_score,
+                                "reasoning": self.get_bias_reasoning(chunk[i], label, bias_score)
+                            })
+                return all_results
             except Exception as e:
                 print(f"Batch analysis error [{model_version}]: {e}", file=sys.stderr)
 
@@ -521,8 +525,8 @@ class NewsService:
         if not sentences:
             return {"label": "Neutral", "score": 0.0, "reasoning": "No valid content found after filtering."}
         
-        # 2. Analyze sentences in batches (up to 25 to avoid OOM)
-        analysis_batch = sentences[:25]
+        # 2. Analyze ALL sentences using chunked batching to avoid OOM
+        analysis_batch = sentences
         results = self.rate_bias_batch(analysis_batch)
         
         if not results or all(r.get("label") == "Offline" for r in results):

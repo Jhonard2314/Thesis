@@ -333,7 +333,8 @@ def analyze(request: AnalysisRequest):
 
         elif request.action == "analyze_bias":
             sentences = service.split_into_sentences(content)
-            analysis_sentences = sentences[:25]
+            # Use ALL sentences for full article scoring — chunked batching in rate_bias_batch prevents OOM
+            analysis_sentences = sentences
             # Re-fetch elapsed (it may have been updated by stuck-loading transition above)
             cur_elapsed = service.get_loading_elapsed("bias")
             
@@ -503,7 +504,7 @@ def analyze(request: AnalysisRequest):
                 print(f"[FASTAPI DEBUG] No biased sentences found - skipping keyword extraction", file=sys.stderr)
                 top_words = []
             else:
-                sample_text = " ".join(biased_sentences[:8])
+                sample_text = " ".join(biased_sentences[:min(len(biased_sentences), 20)])
                 print(f"[FASTAPI DEBUG] Using {len(biased_sentences)} biased sentences for keyword extraction", file=sys.stderr)
                 print(f"[FASTAPI DEBUG] sample_text length: {len(sample_text)}", file=sys.stderr)
             
@@ -549,7 +550,9 @@ def analyze(request: AnalysisRequest):
                     print(f"[FASTAPI DEBUG] Distributing keywords across {len(biased_sentences)} biased sentences", file=sys.stderr)
                     
                     # Process each biased sentence separately to get diverse keywords
-                    for sent_idx, sent in enumerate(biased_sentences[:8]):
+                    # Scale keyword sentences based on article size — up to 20 for large articles
+                    keyword_sent_limit = min(len(biased_sentences), max(8, len(biased_sentences) // 2))
+                    for sent_idx, sent in enumerate(biased_sentences[:keyword_sent_limit]):
                         words = re.findall(r"[A-Za-z][A-Za-z]{2,}", sent)
                         
                         # POS tagging for this sentence
